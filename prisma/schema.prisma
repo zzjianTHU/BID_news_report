@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+}
+
+enum SourceType {
+  RSS
+  WEB
+}
+
+enum RunStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum RiskLevel {
+  LOW
+  HIGH
+}
+
+enum CandidateStatus {
+  INGESTED
+  REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+enum AutoPostStatus {
+  PUBLISHED
+  REVIEW
+}
+
+enum DigestDuration {
+  THREE
+  EIGHT
+}
+
+enum ThoughtStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum DispatchStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole
+  topic     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Source {
+  id             String         @id @default(cuid())
+  name           String
+  slug           String         @unique
+  type           SourceType
+  url            String
+  description    String
+  frequency      String
+  priority       Int            @default(50)
+  trustScore     Int            @default(70)
+  enabled        Boolean        @default(true)
+  tags           String
+  lastRunAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  candidateItems CandidateItem[]
+  ingestionRuns  IngestionRun[]
+}
+
+model WorkflowConfig {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  summaryPrompt      String
+  highlightPrompt    String
+  riskKeywords       String
+  autoPublishMinTrust Int
+  digestRuleThree    String
+  digestRuleEight    String
+  notes              String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model IngestionRun {
+  id             String      @id @default(cuid())
+  sourceId       String?
+  source         Source?     @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  status         RunStatus
+  itemsFound     Int
+  itemsPublished Int
+  notes          String?
+  startedAt      DateTime
+  finishedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  candidateItems CandidateItem[]
+}
+
+model CandidateItem {
+  id             String          @id @default(cuid())
+  sourceId       String
+  source         Source          @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  ingestionRunId String?
+  ingestionRun   IngestionRun?   @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  title          String
+  normalizedUrl  String          @unique
+  excerpt        String
+  rawContent     String
+  tags           String
+  aiSummary      String
+  worthReading   String
+  aiConfidence   Float           @default(0.7)
+  riskLevel      RiskLevel
+  status         CandidateStatus @default(INGESTED)
+  publishedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  autoPost       AutoPost?
+}
+
+model AutoPost {
+  id              String         @id @default(cuid())
+  candidateItemId String         @unique
+  candidateItem   CandidateItem  @relation(fields: [candidateItemId], references: [id], onDelete: Cascade)
+  title           String
+  summary         String
+  worthReading    String
+  body            String
+  tags            String
+  sourceLabel     String
+  sourceUrl       String
+  status          AutoPostStatus
+  publishedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Digest {
+  id        String        @id @default(cuid())
+  date      String        @unique
+  title     String
+  summary   String
+  entries   DigestEntry[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  dispatches EmailDispatch[]
+}
+
+model DigestEntry {
+  id           String         @id @default(cuid())
+  digestId     String
+  digest       Digest         @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  duration     DigestDuration
+  order        Int
+  title        String
+  summary      String
+  worthReading String
+  sourceLabel  String
+  sourceUrl    String
+  tag          String
+}
+
+model ThoughtPost {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  title       String
+  excerpt     String
+  body        String
+  authorName  String
+  status      ThoughtStatus
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Subscriber {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  name            String?
+  interest        String
+  defaultDuration DigestDuration
+  frequency       String
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  dispatches      EmailDispatch[]
+}
+
+model EmailDispatch {
+  id           String         @id @default(cuid())
+  subscriberId String
+  subscriber   Subscriber     @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  digestId     String
+  digest       Digest         @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  status       DispatchStatus
+  subject      String
+  scheduledFor DateTime
+  sentAt       DateTime?
+  notes        String?
+  createdAt    DateTime       @default(now())
+}

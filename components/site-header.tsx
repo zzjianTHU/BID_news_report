@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 type SiteHeaderProps = {
   current?: "home" | "digest" | "thoughts" | "about";
@@ -12,8 +15,35 @@ const navItems = [
 ] as const;
 
 export function SiteHeader({ current = "home" }: SiteHeaderProps) {
+  const [isHidden, setIsHidden] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Only trigger hide/show if scrolling more than a buffer to prevent jitter
+      if (Math.abs(currentScrollY - lastScrollY) < 10) {
+        return;
+      }
+
+      // Hide if scrolling down and past header height (e.g. 80px)
+      if (currentScrollY > lastScrollY && currentScrollY > 80) {
+        setIsHidden(true);
+      } else {
+        // Show if scrolling up or at top
+        setIsHidden(false);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
+
   return (
-    <header className="site-header-shell">
+    <header className={`site-header-shell ${isHidden ? "is-hidden" : ""}`}>
       <div className="top-app-bar">
         <div>
           <p className="micro-label">THU BUSINESS INTELLIGENCE</p>

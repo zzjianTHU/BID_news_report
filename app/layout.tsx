@@ -21,7 +21,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${sans.variable} ${serif.variable}`}>{children}</body>
+      <body className={`${sans.variable} ${serif.variable}`}>
+        {/* Background Decorative Layer for Glassmorphism */}
+        <div className="fixed inset-0 pointer-events-none -z-10 bg-grid-pattern opacity-[0.03]"></div>
+        <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-orange-300/20 blur-[100px] pointer-events-none -z-10 mix-blend-multiply"></div>
+        <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-300/20 blur-[120px] pointer-events-none -z-10 mix-blend-multiply"></div>
+        
+        {/* Main Content */}
+        <div className="relative z-0">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

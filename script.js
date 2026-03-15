@@ -205,10 +205,13 @@ function renderBrief() {
 
   briefList.innerHTML = view.items
     .map(
-      (item) => `
+      (item, index) => `
         <article class="brief-card">
           <div class="brief-card-header">
-            <h5>${item.title}</h5>
+            <div class="brief-card-title-group">
+              <span class="brief-card-order">${String(index + 1).padStart(2, "0")}</span>
+              <h5>${item.title}</h5>
+            </div>
             <span class="brief-tag">${item.tag}</span>
           </div>
           <p>${item.summary}</p>
@@ -244,15 +247,17 @@ durationButtons.forEach((button) => {
   });
 });
 
-subscribeForm.addEventListener("submit", (event) => {
-  event.preventDefault();
+if (subscribeForm && feedback) {
+  subscribeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
 
-  const email = document.querySelector("#email-input").value.trim();
-  const topic = document.querySelector("#topic-select").selectedOptions[0].textContent;
-  const duration = document.querySelector("#duration-select").value;
+    const email = document.querySelector("#email-input").value.trim();
+    const topic = document.querySelector("#topic-select").selectedOptions[0].textContent;
+    const duration = document.querySelector("#duration-select").value;
 
-  feedback.textContent = `${email} 已加入 Demo 订阅列表，默认接收 ${topic} 的 ${duration} 分钟版。`;
-  subscribeForm.reset();
-});
+    feedback.textContent = `${email} 已加入 Demo 订阅列表，默认接收 ${topic} 的 ${duration} 分钟版。`;
+    subscribeForm.reset();
+  });
+}
 
 renderBrief();

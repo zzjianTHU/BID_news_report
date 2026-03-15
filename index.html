@@ -11,268 +11,308 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Serif+4:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="ambient ambient-left"></div>
-    <div class="ambient ambient-right"></div>
+    <div class="page-shell">
+      <div class="ambient ambient-top"></div>
+      <div class="ambient ambient-bottom"></div>
 
-    <header class="site-header">
-      <div class="brand-lockup">
-        <span class="brand-mark">THU-BMC</span>
-        <div>
-          <p class="eyebrow">清华商业模式中心</p>
-          <h1>专题情报站 Demo</h1>
-        </div>
-      </div>
-      <nav class="site-nav">
-        <a href="#today">今日情报</a>
-        <a href="#channels">专题频道</a>
-        <a href="#workflow">工作流</a>
-        <a href="#subscribe">订阅</a>
-      </nav>
-    </header>
-
-    <main>
-      <section class="hero panel">
-        <div class="hero-copy">
-          <p class="eyebrow">Time-based Intelligence</p>
-          <h2>让用户用 3 分钟或 8 分钟，读完今天真正值得看的内容。</h2>
-          <p class="hero-text">
-            这是一个轻量化、多专题协作的信息产品原型。平台支持自动抓取、人工上传、专题维护与邮件订阅，并把同一批内容编排成不同阅读时长版本。
-          </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="#today">立即体验 Demo</a>
-            <a class="button button-secondary" href="#workflow">查看后台逻辑</a>
-          </div>
-        </div>
-        <div class="hero-metrics">
-          <article class="metric-card">
-            <span class="metric-label">首批频道</span>
-            <strong>2</strong>
-            <p>AI、快消</p>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">默认阅读版本</span>
-            <strong>2</strong>
-            <p>3 分钟 / 8 分钟</p>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">内容输入方式</span>
-            <strong>2</strong>
-            <p>自动抓取 + 手动上传</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="today" class="panel section-block">
-        <div class="section-heading">
+      <header class="site-header">
+        <div class="brand-lockup">
+          <span class="brand-mark">THU</span>
           <div>
-            <p class="eyebrow">Today’s Brief</p>
-            <h3>今日情报包</h3>
-          </div>
-          <div class="switchers">
-            <div class="chip-group" aria-label="专题切换">
-              <button class="chip is-active" data-channel="all">全站精选</button>
-              <button class="chip" data-channel="ai">AI</button>
-              <button class="chip" data-channel="fmcg">快消</button>
-            </div>
-            <div class="chip-group" aria-label="阅读时长切换">
-              <button class="chip is-active" data-duration="3">3 分钟版</button>
-              <button class="chip" data-duration="8">8 分钟版</button>
-            </div>
+            <p class="eyebrow">清华商业模式中心</p>
+            <h1>专题情报站 Demo</h1>
           </div>
         </div>
+        <nav class="site-nav" aria-label="主导航">
+          <a href="#today">今日情报</a>
+          <a href="#channels">专题设计</a>
+          <a href="#workflow">后台逻辑</a>
+          <a href="#subscribe">订阅</a>
+        </nav>
+      </header>
 
-        <div class="brief-grid">
-          <div class="brief-main">
-            <div class="brief-summary">
-              <p class="summary-label">当前视图</p>
-              <h4 id="summary-title">全站精选 · 3 分钟版</h4>
-              <p id="summary-text">
-                帮管理者和研究者快速了解今天最值得看的 AI 与产业动态。
+      <main>
+        <section class="hero panel">
+          <div class="hero-copy">
+            <p class="eyebrow">Time-based Intelligence</p>
+            <h2>让用户在有限时间里，只读今天真正值得看的内容。</h2>
+            <p class="hero-text">
+              这是一套面向管理者与研究者的轻量化情报产品原型。它把多专题内容收束成统一入口，并按
+              3 分钟与 8 分钟两种阅读时长进行编排。
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#today">查看今日情报包</a>
+              <a class="button button-secondary" href="#subscribe">体验订阅</a>
+            </div>
+          </div>
+
+          <div class="hero-board">
+            <div class="hero-note">
+              <p class="note-label">产品重点</p>
+              <p>
+                不追求信息越多越好，而是把筛选、归纳与分发做成一个足够轻、足够稳定的日常产品。
               </p>
             </div>
-            <div id="brief-list" class="brief-list" aria-live="polite"></div>
-          </div>
-
-          <aside class="brief-side">
-            <div class="side-card">
-              <p class="summary-label">阅读预期</p>
-              <strong id="reading-target">适合快速扫读</strong>
-              <p id="reading-copy">优先显示最重要的 3 条内容，每条包含摘要与一句判断。</p>
+            <div class="hero-metrics">
+              <article class="metric-card">
+                <span class="metric-label">首批频道</span>
+                <strong>2</strong>
+                <p>AI / 快消</p>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">阅读版本</span>
+                <strong>2</strong>
+                <p>3 分钟 / 8 分钟</p>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">输入方式</span>
+                <strong>2</strong>
+                <p>自动抓取 / 手动上传</p>
+              </article>
             </div>
-            <div class="side-card">
-              <p class="summary-label">今日来源</p>
-              <ul id="source-list" class="source-list"></ul>
+          </div>
+        </section>
+
+        <section class="signal-strip">
+          <article class="signal-card panel">
+            <span class="signal-index">01</span>
+            <h3>更简洁</h3>
+            <p>首页先聚焦今日情报包，再解释频道与工作流，避免信息入口分散。</p>
+          </article>
+          <article class="signal-card panel">
+            <span class="signal-index">02</span>
+            <h3>更像产品</h3>
+            <p>把“阅读时长切换 + 摘要列表 + 来源说明”做成真正可体验的核心界面。</p>
+          </article>
+          <article class="signal-card panel">
+            <span class="signal-index">03</span>
+            <h3>更适合展示</h3>
+            <p>缩短文案、统一卡片层级、修正多栏比例，让页面在桌面和移动端都更稳。</p>
+          </article>
+        </section>
+
+        <section id="today" class="panel brief-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Today’s Brief</p>
+              <h3>今日情报包</h3>
             </div>
-          </aside>
-        </div>
-      </section>
-
-      <section id="channels" class="section-block channels">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Channels</p>
-            <h3>专题频道设计</h3>
+            <div class="switchers">
+              <div class="chip-group" aria-label="专题切换">
+                <button class="chip is-active" data-channel="all">全站精选</button>
+                <button class="chip" data-channel="ai">AI</button>
+                <button class="chip" data-channel="fmcg">快消</button>
+              </div>
+              <div class="chip-group" aria-label="阅读时长切换">
+                <button class="chip is-active" data-duration="3">3 分钟版</button>
+                <button class="chip" data-duration="8">8 分钟版</button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="channel-grid">
-          <article class="panel channel-card">
-            <span class="channel-badge">AI</span>
-            <h4>AI 情报频道</h4>
-            <p>
-              聚焦模型、Agent、组织落地、产品趋势。适合创业者、产品负责人和产业观察者。
-            </p>
-            <ul class="feature-list">
-              <li>维护人：专题编辑 A</li>
-              <li>内容源：研究机构、技术媒体、原创点评</li>
-              <li>更新节奏：每日工作日</li>
-            </ul>
-          </article>
-          <article class="panel channel-card">
-            <span class="channel-badge">FMCG</span>
-            <h4>快消观察频道</h4>
-            <p>
-              聚焦消费品牌、渠道变化、市场案例与商业模式创新，面向行业研究和品牌管理者。
-            </p>
-            <ul class="feature-list">
-              <li>维护人：专题编辑 B</li>
-              <li>内容源：行业资讯、研究报告、中心文章</li>
-              <li>更新节奏：每日工作日</li>
-            </ul>
-          </article>
-          <article class="panel channel-card accent-card">
-            <span class="channel-badge">Platform</span>
-            <h4>统一分发层</h4>
-            <p>
-              用户可以按专题订阅，也可以只看平台每日聚合后的“今日必读”，降低内容消费门槛。
-            </p>
-            <ul class="feature-list">
-              <li>统一首页与品牌呈现</li>
-              <li>统一邮箱订阅入口</li>
-              <li>统一按时长阅读体验</li>
-            </ul>
-          </article>
-        </div>
-      </section>
 
-      <section id="workflow" class="panel section-block workflow">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Workflow</p>
-            <h3>轻量化后台工作流</h3>
+          <div class="brief-layout">
+            <div class="brief-main">
+              <div class="brief-summary">
+                <div>
+                  <p class="summary-label">当前视图</p>
+                  <h4 id="summary-title">全站精选 · 3 分钟版</h4>
+                </div>
+                <p id="summary-text">
+                  帮管理者和研究者快速了解今天最值得看的 AI 与产业动态。
+                </p>
+              </div>
+              <div id="brief-list" class="brief-list" aria-live="polite"></div>
+            </div>
+
+            <aside class="brief-side">
+              <div class="side-card emphasis-card">
+                <p class="summary-label">阅读预期</p>
+                <strong id="reading-target">适合快速扫读</strong>
+                <p id="reading-copy">优先显示最重要的 3 条内容，每条包含摘要与一句判断。</p>
+              </div>
+              <div class="side-card">
+                <p class="summary-label">今日来源</p>
+                <ul id="source-list" class="source-list"></ul>
+              </div>
+              <div class="side-card compact-card">
+                <p class="summary-label">适合谁看</p>
+                <p>管理者、研究者、专题编辑，以及需要快速判断“今天要不要继续深入”的用户。</p>
+              </div>
+            </aside>
           </div>
-        </div>
-        <div class="workflow-steps">
-          <article class="workflow-step">
-            <span>01</span>
-            <h4>抓取与上传</h4>
-            <p>系统按专题自动抓取内容，编辑也可以手动上传 PDF、链接和中心原创材料。</p>
-          </article>
-          <article class="workflow-step">
-            <span>02</span>
-            <h4>候选池筛选</h4>
-            <p>专题负责人每天从候选池中挑选最值得进入简报的 3-5 条内容。</p>
-          </article>
-          <article class="workflow-step">
-            <span>03</span>
-            <h4>生成初稿</h4>
-            <p>系统自动生成摘要初稿，并按 3 分钟版与 8 分钟版生成两套编排。</p>
-          </article>
-          <article class="workflow-step">
-            <span>04</span>
-            <h4>轻编辑发布</h4>
-            <p>负责人补充一句点评或修订表述后，站内发布并推送到用户邮箱。</p>
-          </article>
-        </div>
-      </section>
+        </section>
 
-      <section class="section-block">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Why This MVP</p>
-            <h3>第一版只做最关键的事</h3>
+        <section id="channels" class="systems-grid">
+          <div class="panel systems-card">
+            <div class="section-heading section-heading-compact">
+              <div>
+                <p class="eyebrow">Channels</p>
+                <h3>专题频道设计</h3>
+              </div>
+            </div>
+            <div class="channel-stack">
+              <article class="channel-card">
+                <div class="channel-heading">
+                  <span class="channel-badge">AI</span>
+                  <p>模型、Agent、组织落地</p>
+                </div>
+                <h4>AI 情报频道</h4>
+                <p>面向创业者、产品负责人和产业观察者，强调趋势判断与组织应用价值。</p>
+                <ul class="feature-list">
+                  <li>维护人：专题编辑 A</li>
+                  <li>更新节奏：每日工作日</li>
+                  <li>内容源：研究机构、技术媒体、原创点评</li>
+                </ul>
+              </article>
+              <article class="channel-card">
+                <div class="channel-heading">
+                  <span class="channel-badge">FMCG</span>
+                  <p>品牌、渠道、消费者变化</p>
+                </div>
+                <h4>快消观察频道</h4>
+                <p>面向品牌管理者与行业研究者，聚焦渠道编排、市场案例与商业模式变化。</p>
+                <ul class="feature-list">
+                  <li>维护人：专题编辑 B</li>
+                  <li>更新节奏：每日工作日</li>
+                  <li>内容源：行业资讯、研究报告、中心文章</li>
+                </ul>
+              </article>
+              <article class="channel-card channel-card-featured">
+                <div class="channel-heading">
+                  <span class="channel-badge">Platform</span>
+                  <p>统一品牌与统一分发</p>
+                </div>
+                <h4>统一分发层</h4>
+                <p>用户可以单独订阅专题，也可以只看平台聚合后的“今日必读”，降低内容消费门槛。</p>
+              </article>
+            </div>
           </div>
-        </div>
-        <div class="scope-grid">
-          <article class="panel scope-card">
-            <h4>MVP 包含</h4>
-            <ul class="feature-list">
-              <li>首页、专题页、每日简报页</li>
-              <li>3 分钟 / 8 分钟阅读切换</li>
-              <li>自动抓取 + 手动上传</li>
-              <li>邮箱订阅与邮件推送</li>
-              <li>多专题协作维护</li>
-            </ul>
-          </article>
-          <article class="panel scope-card muted-card">
-            <h4>MVP 暂不包含</h4>
-            <ul class="feature-list">
-              <li>付费订阅与支付</li>
-              <li>复杂会员体系</li>
-              <li>评论社区</li>
-              <li>个性化推荐算法</li>
-              <li>重型 CMS 审批流</li>
-            </ul>
-          </article>
-        </div>
-      </section>
 
-      <section id="subscribe" class="panel section-block subscribe">
-        <div class="subscribe-copy">
-          <p class="eyebrow">Subscribe</p>
-          <h3>用户只需要留一个邮箱，就能开始轻度使用。</h3>
-          <p>
-            Demo 中模拟了最轻量的订阅逻辑：选择专题、默认阅读时长和推送频率，完成后展示成功反馈。
-          </p>
-        </div>
-        <form id="subscribe-form" class="subscribe-form">
-          <label>
-            邮箱
-            <input
-              id="email-input"
-              type="email"
-              name="email"
-              placeholder="name@example.com"
-              required
-            />
-          </label>
-          <label>
-            关注专题
-            <select id="topic-select" name="topic">
-              <option value="all">全站精选</option>
-              <option value="ai">AI</option>
-              <option value="fmcg">快消</option>
-            </select>
-          </label>
-          <label>
-            默认阅读版本
-            <select id="duration-select" name="duration">
-              <option value="3">3 分钟版</option>
-              <option value="8">8 分钟版</option>
-            </select>
-          </label>
-          <label>
-            推送频率
-            <select name="frequency">
-              <option value="weekday">工作日</option>
-              <option value="daily">每日</option>
-            </select>
-          </label>
-          <button class="button button-primary" type="submit">完成订阅</button>
-          <p id="form-feedback" class="form-feedback" aria-live="polite"></p>
-        </form>
-      </section>
-    </main>
+          <div class="panel systems-card" id="workflow">
+            <div class="section-heading section-heading-compact">
+              <div>
+                <p class="eyebrow">Workflow</p>
+                <h3>轻量化后台逻辑</h3>
+              </div>
+            </div>
+            <div class="workflow-steps">
+              <article class="workflow-step">
+                <span>01</span>
+                <div>
+                  <h4>抓取与上传</h4>
+                  <p>系统按专题自动抓取内容，编辑也可以手动上传 PDF、链接和原创材料。</p>
+                </div>
+              </article>
+              <article class="workflow-step">
+                <span>02</span>
+                <div>
+                  <h4>候选池筛选</h4>
+                  <p>专题负责人每天从候选池里挑选最值得进入简报的 3 到 5 条内容。</p>
+                </div>
+              </article>
+              <article class="workflow-step">
+                <span>03</span>
+                <div>
+                  <h4>生成两版摘要</h4>
+                  <p>系统自动生成摘要初稿，并按 3 分钟版与 8 分钟版输出两套编排。</p>
+                </div>
+              </article>
+              <article class="workflow-step">
+                <span>04</span>
+                <div>
+                  <h4>轻编辑发布</h4>
+                  <p>负责人补充一句点评或修订表述后，站内发布并推送到邮箱。</p>
+                </div>
+              </article>
+            </div>
 
-    <footer class="site-footer">
-      <p>Demo for 清华商业模式中心信息产品 MVP</p>
-      <p>当前版本聚焦产品方向验证，不包含付费能力。</p>
-    </footer>
+            <div class="scope-row">
+              <article class="scope-card">
+                <p class="summary-label">MVP 包含</p>
+                <ul class="feature-list">
+                  <li>首页、专题页、每日简报页</li>
+                  <li>3 分钟 / 8 分钟阅读切换</li>
+                  <li>自动抓取 + 手动上传</li>
+                  <li>邮箱订阅与邮件推送</li>
+                </ul>
+              </article>
+              <article class="scope-card scope-card-muted">
+                <p class="summary-label">MVP 暂不包含</p>
+                <ul class="feature-list">
+                  <li>付费订阅与支付</li>
+                  <li>复杂会员体系</li>
+                  <li>评论社区</li>
+                  <li>重型 CMS 审批流</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section id="subscribe" class="panel subscribe">
+          <div class="subscribe-copy">
+            <p class="eyebrow">Subscribe</p>
+            <h3>用户只需要留一个邮箱，就能开始轻度使用。</h3>
+            <p>
+              Demo 模拟了最轻量的订阅逻辑：选择专题、默认阅读版本和推送频率，完成后即返回订阅成功反馈。
+            </p>
+            <ul class="subscribe-points">
+              <li>默认支持全站精选、AI、快消三种订阅口径</li>
+              <li>支持 3 分钟版和 8 分钟版两种默认偏好</li>
+              <li>适合 MVP 阶段快速验证用户触达和回访机制</li>
+            </ul>
+          </div>
+
+          <form id="subscribe-form" class="subscribe-form">
+            <label>
+              邮箱
+              <input
+                id="email-input"
+                type="email"
+                name="email"
+                placeholder="name@example.com"
+                required
+              />
+            </label>
+            <label>
+              关注专题
+              <select id="topic-select" name="topic">
+                <option value="all">全站精选</option>
+                <option value="ai">AI</option>
+                <option value="fmcg">快消</option>
+              </select>
+            </label>
+            <label>
+              默认阅读版本
+              <select id="duration-select" name="duration">
+                <option value="3">3 分钟版</option>
+                <option value="8">8 分钟版</option>
+              </select>
+            </label>
+            <label>
+              推送频率
+              <select name="frequency">
+                <option value="weekday">工作日</option>
+                <option value="daily">每日</option>
+              </select>
+            </label>
+            <button class="button button-primary" type="submit">完成订阅</button>
+            <p id="form-feedback" class="form-feedback" aria-live="polite"></p>
+          </form>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Demo for 清华商业模式中心信息产品 MVP</p>
+        <p>当前版本聚焦方向验证，不包含付费能力。</p>
+      </footer>
+    </div>
 
     <script src="./script.js"></script>
   </body>

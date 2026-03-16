@@ -4,8 +4,8 @@
 
 Copy `.env.example` to `.env`, then fill in your Supabase Postgres credentials.
 
-- `DATABASE_URL`: use the Supabase pooled connection string for app runtime.
-- `DIRECT_URL`: use the direct connection string for Prisma schema operations.
+- `DATABASE_URL`: use the Supabase session pooler connection string for app runtime.
+- `DIRECT_URL`: start with the same session pooler string if direct host access is unavailable from your network.
 
 ## 2. Generate Prisma client
 

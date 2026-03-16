@@ -9,9 +9,9 @@
     "lint": "eslint .",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "node --env-file=.env --import tsx prisma/seed.ts",
     "db:reset": "node -e \"if (process.env.ALLOW_DATABASE_RESET !== 'true') { console.error('Set ALLOW_DATABASE_RESET=true before running db:reset.'); process.exit(1); }\" && prisma db push --force-reset && npm run db:seed",
-    "automation:run": "tsx scripts/run-automation.ts"
+    "automation:run": "node --env-file=.env --import tsx scripts/run-automation.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

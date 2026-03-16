@@ -10,7 +10,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "rm -f prisma/dev.db && npm run db:push && npm run db:seed",
+    "db:reset": "node -e \"if (process.env.ALLOW_DATABASE_RESET !== 'true') { console.error('Set ALLOW_DATABASE_RESET=true before running db:reset.'); process.exit(1); }\" && prisma db push --force-reset && npm run db:seed",
     "automation:run": "tsx scripts/run-automation.ts"
   },
   "prisma": {

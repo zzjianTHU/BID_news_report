@@ -9,7 +9,7 @@ export default async function ArchivePage() {
 
   return (
     <main className="page-shell">
-      <SiteHeader current="digest" />
+      <SiteHeader />
       <div className="page-body">
         <StickySwitcher
           items={[

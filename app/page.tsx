@@ -30,7 +30,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <main className="page-shell">
-      <SiteHeader current="home" />
+      <SiteHeader />
 
       <div className="page-body">
         {latestDigest ? (
@@ -79,9 +79,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
             <div className="section-actions">
               <FilterDrawer currentTag={tag} currentWindow={window} />
-              <Link className="mini-link dark" href="/archive">
-                View all
-              </Link>
             </div>
           </div>
 

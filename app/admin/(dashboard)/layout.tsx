@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { AdminNav } from "@/components/admin/admin-nav";
 import { CompactStatusPanel } from "@/components/admin/compact-status-panel";
 import { logoutAction } from "@/lib/actions";
 import { requireAdminSession } from "@/lib/auth";
@@ -33,14 +32,7 @@ export default async function AdminDashboardLayout({
           </button>
         </form>
       </header>
-
-      <nav className="admin-nav" aria-label="Admin navigation">
-        {adminNav.map((item) => (
-          <Link className="main-nav-link admin-nav-link" href={item.href} key={item.href}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <AdminNav items={adminNav} />
 
       <CompactStatusPanel snapshot={snapshot} />
 

@@ -30,7 +30,8 @@ export function FilterDrawer({ currentTag, currentWindow }: FilterDrawerProps) {
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set(key, value);
-    router.push(`${pathname}?${params.toString()}`);
+    setOpen(false);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   return (

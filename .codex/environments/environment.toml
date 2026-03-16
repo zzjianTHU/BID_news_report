@@ -4,3 +4,8 @@ name = "BID_news_report"
 
 [setup]
 script = ""
+
+[[actions]]
+name = "run"
+icon = "run"
+command = "npm run dev"

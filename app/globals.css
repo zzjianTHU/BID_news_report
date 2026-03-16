@@ -417,14 +417,17 @@ button {
 }
 
 .sticky-switcher {
-  position: sticky;
-  top: 164px;
-  z-index: 10;
   display: flex;
   gap: 8px;
   overflow-x: auto;
   margin-top: 18px;
   padding: 10px 2px;
+}
+
+.sticky-switcher.is-sticky {
+  position: sticky;
+  top: 164px;
+  z-index: 10;
 }
 
 .switcher-link {
@@ -972,7 +975,7 @@ button {
     padding-bottom: 64px;
   }
 
-  .sticky-switcher {
+  .sticky-switcher.is-sticky {
     top: 132px;
   }
 

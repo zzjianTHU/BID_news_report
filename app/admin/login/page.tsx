@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+
+import { isAdminAuthenticated } from "@/lib/auth";
 import { loginAction } from "@/lib/actions";
 
 type AdminLoginPageProps = {
@@ -5,6 +8,10 @@ type AdminLoginPageProps = {
 };
 
 export default async function AdminLoginPage({ searchParams }: AdminLoginPageProps) {
+  if (await isAdminAuthenticated()) {
+    redirect("/admin/queue");
+  }
+
   const resolvedSearchParams = await searchParams;
 
   return (

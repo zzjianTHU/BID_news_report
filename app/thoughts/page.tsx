@@ -9,7 +9,7 @@ export default async function ThoughtsPage() {
 
   return (
     <main className="page-shell">
-      <SiteHeader current="thoughts" />
+      <SiteHeader />
       <div className="page-body">
         <StickySwitcher
           items={[

@@ -4,7 +4,7 @@ import { SubscribeCTA } from "@/components/subscribe-cta";
 export default function AboutPage() {
   return (
     <main className="page-shell">
-      <SiteHeader current="about" />
+      <SiteHeader />
       <div className="page-body">
         <section className="section-block">
           <p className="section-kicker">About</p>

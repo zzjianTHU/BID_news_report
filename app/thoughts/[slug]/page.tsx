@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
@@ -19,8 +20,11 @@ export default async function ThoughtDetailPage({ params }: ThoughtDetailPagePro
 
   return (
     <main className="page-shell">
-      <SiteHeader current="thoughts" />
+      <SiteHeader />
       <article className="article-shell">
+        <Link className="mini-link dark" href="/thoughts">
+          Back to thoughts
+        </Link>
         <p className="section-kicker">专题 / 思考</p>
         <h1 className="article-title">{thought.title}</h1>
         <div className="article-meta">

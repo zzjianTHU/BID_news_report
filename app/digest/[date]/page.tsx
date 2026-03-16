@@ -26,9 +26,10 @@ export default async function DigestPage({ params, searchParams }: DigestPagePro
 
   return (
     <main className="page-shell">
-      <SiteHeader current="digest" />
+      <SiteHeader />
       <div className="page-body">
         <StickySwitcher
+          sticky
           items={[
             { href: `/digest/${date}?view=3`, label: "3 min", active: view === "3" },
             { href: `/digest/${date}?view=8`, label: "8 min", active: view === "8" },

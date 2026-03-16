@@ -16,7 +16,7 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
 
   return (
     <main className="page-shell">
-      <SiteHeader current="home" />
+      <SiteHeader />
       <div className="page-body">
         <section className="subscribe-page">
           <div className="subscribe-panel">

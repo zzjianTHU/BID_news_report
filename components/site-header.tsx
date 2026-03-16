@@ -1,22 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 
-type SiteHeaderProps = {
-  current?: "home" | "digest" | "thoughts" | "about";
-};
-
 const navItems = [
-  { href: "/", label: "Home", key: "home" },
-  { href: "/archive", label: "Digest", key: "digest" },
-  { href: "/thoughts", label: "Thoughts", key: "thoughts" },
-  { href: "/about", label: "About", key: "about" }
+  { href: "/", label: "Home", isActive: (pathname: string) => pathname === "/" },
+  { href: "/archive", label: "Digest", isActive: (pathname: string) => pathname === "/archive" || pathname.startsWith("/digest/") },
+  { href: "/thoughts", label: "Thoughts", isActive: (pathname: string) => pathname === "/thoughts" || pathname.startsWith("/thoughts/") },
+  { href: "/about", label: "About", isActive: (pathname: string) => pathname === "/about" }
 ] as const;
 
-export function SiteHeader({ current = "home" }: SiteHeaderProps) {
+export function SiteHeader() {
   const [isHidden, setIsHidden] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,7 +75,7 @@ export function SiteHeader({ current = "home" }: SiteHeaderProps) {
           <Link
             key={item.href}
             href={item.href}
-            className={`main-nav-link ${current === item.key ? "is-active" : ""}`}
+            className={`main-nav-link ${item.isActive(pathname) ? "is-active" : ""}`}
           >
             {item.label}
           </Link>

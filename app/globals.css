@@ -87,11 +87,12 @@ button {
 }
 
 .site-header-inner {
-  display: grid;
-  grid-template-columns: 240px 1fr 240px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
-  padding: 0 16px;
-  height: 64px;
+  padding: 12px 16px;
+  gap: 16px;
 }
 
 .brand-subtitle,
@@ -198,9 +199,17 @@ button {
 
 .main-nav {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 4px;
   white-space: nowrap;
+  order: 3;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.main-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .main-nav-link {
@@ -280,7 +289,7 @@ button {
 .digest-hero-card {
   position: relative;
   overflow: hidden;
-  padding: 32px 28px;
+  padding: 24px 20px;
   background: rgba(255, 255, 255, 0.85);
   color: var(--text);
 }
@@ -547,10 +556,10 @@ button {
 }
 
 .feed-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px;
-  gap: 20px;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
 }
 
 .feed-card-copy {
@@ -596,18 +605,15 @@ button {
 
 .feed-card-side {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   gap: 12px;
 }
 
 .feed-thumb {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  width: 100%;
-  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  width: 90px;
+  height: 90px;
+  aspect-ratio: auto;
   padding: 10px;
   border-radius: 20px;
   background: var(--bg-soft);
@@ -649,7 +655,7 @@ button {
 .subscribe-cta {
   display: grid;
   gap: 16px;
-  padding: 32px;
+  padding: 24px;
   background: linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%);
   color: var(--text);
   border: 1px solid var(--line);
@@ -902,6 +908,40 @@ button {
 }
 
 @media (min-width: 760px) {
+  .site-header-inner {
+    display: grid;
+    grid-template-columns: 240px 1fr 240px;
+    height: 64px;
+    padding: 0 16px;
+    gap: 0;
+  }
+
+  .main-nav {
+    order: unset;
+    width: auto;
+    overflow-x: visible;
+    justify-content: center;
+  }
+
+  .feed-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 112px;
+    gap: 20px;
+    padding: 24px;
+  }
+
+  .feed-card-side {
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .feed-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+
   .page-body {
     padding-top: 28px;
   }
@@ -948,6 +988,7 @@ button {
   .subscribe-cta {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+    padding: 32px;
   }
 
   .admin-metric-grid {

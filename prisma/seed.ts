@@ -3,6 +3,7 @@ import {
   CandidateStatus,
   DigestDuration,
   DispatchStatus,
+  IngestionTrigger,
   PrismaClient,
   RiskLevel,
   RunStatus,
@@ -69,9 +70,12 @@ async function main() {
         url: "https://openai.com/news/rss.xml",
         description: "模型能力、产品更新与生态动向。",
         frequency: "每 2 小时",
+        fetchIntervalMinutes: 120,
         priority: 92,
         trustScore: 95,
-        tags: "models,products,ecosystem"
+        tags: "models,products,ecosystem",
+        nextRunAt: new Date("2026-03-15T08:00:00.000Z"),
+        lastSyncedAt: new Date("2026-03-15T06:00:00.000Z")
       }
     }),
     prisma.source.create({
@@ -82,9 +86,12 @@ async function main() {
         url: "https://www.anthropic.com/news",
         description: "模型发布、企业合作与安全动态。",
         frequency: "每 4 小时",
+        fetchIntervalMinutes: 240,
         priority: 88,
         trustScore: 90,
-        tags: "agents,safety,enterprise"
+        tags: "agents,safety,enterprise",
+        nextRunAt: new Date("2026-03-15T10:00:00.000Z"),
+        lastSyncedAt: new Date("2026-03-15T06:00:00.000Z")
       }
     }),
     prisma.source.create({
@@ -95,9 +102,12 @@ async function main() {
         url: "https://example.com/ai-infra/rss",
         description: "算力、AI infra 与企业部署案例。",
         frequency: "每 6 小时",
+        fetchIntervalMinutes: 360,
         priority: 76,
         trustScore: 78,
-        tags: "infra,enterprise,ops"
+        tags: "infra,enterprise,ops",
+        nextRunAt: new Date("2026-03-15T12:00:00.000Z"),
+        lastSyncedAt: new Date("2026-03-15T06:00:00.000Z")
       }
     }),
     prisma.source.create({
@@ -108,10 +118,13 @@ async function main() {
         url: "https://example.com/founder-notes",
         description: "创始人观点与非结构化案例，默认进入高风险审核。",
         frequency: "每日",
+        fetchIntervalMinutes: 1440,
         priority: 60,
         trustScore: 58,
         enabled: true,
-        tags: "founders,signals,market"
+        tags: "founders,signals,market",
+        nextRunAt: new Date("2026-03-16T06:00:00.000Z"),
+        lastSyncedAt: new Date("2026-03-15T06:00:00.000Z")
       }
     })
   ]);
@@ -119,10 +132,12 @@ async function main() {
   const run = await prisma.ingestionRun.create({
     data: {
       sourceId: sources[0].id,
+      trigger: IngestionTrigger.SCHEDULED,
       status: RunStatus.SUCCESS,
       itemsFound: 7,
       itemsPublished: 4,
       notes: "主源稳定，摘要生成成功率 100%。",
+      errorSummary: null,
       startedAt: new Date("2026-03-15T06:00:00.000Z"),
       finishedAt: new Date("2026-03-15T06:04:00.000Z")
     }
@@ -215,7 +230,10 @@ async function main() {
         aiConfidence: item.aiConfidence,
         riskLevel: item.riskLevel,
         status: item.status,
-        publishedAt: item.publishedAt
+        publishedAt: item.publishedAt,
+        reviewRequestedAt:
+          item.status === CandidateStatus.REVIEW ? new Date("2026-03-15T08:20:00.000Z") : null,
+        reviewMessageId: item.status === CandidateStatus.REVIEW ? "om_demo_review_001" : null
       }
     });
     candidates.push(candidate);
@@ -229,7 +247,7 @@ async function main() {
         summary: candidate.aiSummary,
         worthReading: candidate.worthReading,
         body:
-          "自动生成稿件已完成结构化整理，管理员可在后台补充机构观点、校对标题或调整优先级后再次发布。",
+          "自动生成稿件已完成结构化整理，编辑可在飞书里补充机构观点、校对标题或决定是否保留。",
         tags: candidate.tags,
         sourceLabel: sources.find((source) => source.id === candidate.sourceId)?.name ?? "AI Source",
         sourceUrl: candidate.normalizedUrl,
@@ -312,7 +330,7 @@ async function main() {
       duration: DigestDuration.EIGHT,
       order: 4,
       title: "高风险观点仍需要人工把关，避免情绪型内容污染品牌判断",
-      summary: "创始人激进观点和未经验证的截图很容易传播，但首版策略仍然是进入审核队列，由编辑决定是否转化为可发布洞察。",
+      summary: "创始人激进观点和未经验证的截图很容易传播，但首版策略仍然是进入飞书审批，由编辑决定是否转化为可发布洞察。",
       worthReading: "AI 自动化不能替代机构判断，审核能力本身就是产品价值的一部分。",
       sourceLabel: "Founder Notes",
       sourceUrl: "https://example.com/founder-rumor",

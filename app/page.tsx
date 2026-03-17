@@ -51,7 +51,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <strong>{snapshot.publishedCount}</strong>
           </article>
           <article>
-            <p>待审核</p>
+            <p>待飞书审批</p>
             <strong>{snapshot.reviewCount}</strong>
           </article>
           <article>
@@ -89,7 +89,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <ol className="flow-list">
               <li>抓取数据源并标准化入库</li>
               <li>AI 生成标题、摘要和“为什么值得看”</li>
-              <li>低风险直发，高风险进入审核队列</li>
+              <li>低风险直发，高风险进入飞书审批</li>
               <li>汇总生成 3 分钟版 / 8 分钟版 digest</li>
               <li>按订阅偏好发送邮件</li>
             </ol>
@@ -97,7 +97,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="split-card accent">
             <p className="section-kicker">Queue health</p>
             <h2>{snapshot.lowRiskAutoPublishRate}% 的已发布内容来自低风险直发</h2>
-            <p>管理员只需要处理不确定、证据链不足或需要机构判断的内容，保持效率和可信度平衡。</p>
+            <p>编辑团队只需要在飞书里处理不确定、证据链不足或需要机构判断的内容，保持效率和可信度平衡。</p>
           </div>
         </section>
 

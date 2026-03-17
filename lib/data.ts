@@ -136,6 +136,18 @@ export async function getPublishedThoughts() {
   });
 }
 
+export async function getCandidatePreview(id: string) {
+  return prisma.candidateItem.findUnique({
+    where: {
+      id
+    },
+    include: {
+      source: true,
+      autoPost: true
+    }
+  });
+}
+
 export async function getThoughtBySlug(slug: string) {
   return prisma.thoughtPost.findUnique({
     where: {

@@ -10,7 +10,7 @@ export default function AboutPage() {
           <p className="section-kicker">About</p>
           <h1 className="page-title">这不是传统内容站，而是一套轻量情报自动化系统。</h1>
           <p className="page-intro">
-            产品主体是 AI 驱动的采集、处理、摘要、分流和分发能力。前台只承载最值得看的信息，后台负责配置工作流和做最后一层判断。
+            产品主体是 AI 驱动的采集、处理、摘要、分流和分发能力。公开站只承载最值得看的信息，飞书负责配置数据源、审批高风险内容和接收运行通知。
           </p>
         </section>
 
@@ -22,7 +22,7 @@ export default function AboutPage() {
               <li>定时抓取 RSS 和网页列表</li>
               <li>去重、打标签、抽取元信息</li>
               <li>AI 生成标题、摘要与价值判断</li>
-              <li>低风险直发，高风险审核</li>
+              <li>低风险直发，高风险飞书审批</li>
               <li>自动汇总 digest 和邮件任务</li>
             </ol>
           </div>

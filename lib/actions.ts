@@ -1,19 +1,13 @@
 "use server";
 
-import {
-  AutoPostStatus,
-  CandidateStatus,
-  DigestDuration,
-  DispatchStatus,
-  RiskLevel,
-  SourceType,
-  ThoughtStatus
-} from "@prisma/client";
+import { SourceType, ThoughtStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { clearAdminSession, createAdminSession, getAdminCredentials } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { queueDigestDispatches } from "@/lib/services/digest";
+import { publishCandidate, rejectCandidate } from "@/lib/services/publishing";
 import { durationFromTab, slugify } from "@/lib/utils";
 
 export async function loginAction(formData: FormData) {
@@ -68,7 +62,6 @@ export async function subscribeAction(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/subscribe");
-  revalidatePath("/admin/subscribers");
   redirect("/subscribe?success=1");
 }
 
@@ -153,56 +146,11 @@ export async function reviewCandidateAction(formData: FormData) {
   }
 
   if (decision === "publish") {
-    await prisma.candidateItem.update({
-      where: {
-        id: candidateId
-      },
-      data: {
-        status: CandidateStatus.PUBLISHED,
-        riskLevel: RiskLevel.LOW,
-        publishedAt: new Date()
-      }
-    });
-
-    await prisma.autoPost.upsert({
-      where: {
-        candidateItemId: candidateId
-      },
-      update: {
-        title: candidate.title,
-        summary: candidate.aiSummary,
-        worthReading: candidate.worthReading,
-        body: candidate.rawContent,
-        tags: candidate.tags,
-        sourceLabel: candidate.source.name,
-        sourceUrl: candidate.normalizedUrl,
-        status: AutoPostStatus.PUBLISHED,
-        publishedAt: new Date()
-      },
-      create: {
-        candidateItemId: candidateId,
-        title: candidate.title,
-        summary: candidate.aiSummary,
-        worthReading: candidate.worthReading,
-        body: candidate.rawContent,
-        tags: candidate.tags,
-        sourceLabel: candidate.source.name,
-        sourceUrl: candidate.normalizedUrl,
-        status: AutoPostStatus.PUBLISHED,
-        publishedAt: new Date()
-      }
-    });
+    await publishCandidate(candidateId, "admin-manual-review");
   }
 
   if (decision === "reject") {
-    await prisma.candidateItem.update({
-      where: {
-        id: candidateId
-      },
-      data: {
-        status: CandidateStatus.REJECTED
-      }
-    });
+    await rejectCandidate(candidateId, "admin-manual-review");
   }
 
   revalidatePath("/");
@@ -254,35 +202,7 @@ export async function createThoughtAction(formData: FormData) {
 export async function queueDigestDispatchAction(formData: FormData) {
   const digestId = String(formData.get("digestId") ?? "");
 
-  const [digest, subscribers] = await Promise.all([
-    prisma.digest.findUnique({
-      where: {
-        id: digestId
-      }
-    }),
-    prisma.subscriber.findMany({
-      where: {
-        active: true
-      }
-    })
-  ]);
-
-  if (!digest) {
-    return;
-  }
-
-  for (const subscriber of subscribers) {
-    await prisma.emailDispatch.create({
-      data: {
-        subscriberId: subscriber.id,
-        digestId,
-        status: DispatchStatus.PENDING,
-        subject: `${subscriber.defaultDuration === DigestDuration.THREE ? "3" : "8"} 分钟版 AI 情报日报`,
-        scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
-        notes: "由后台重新生成发送任务。"
-      }
-    });
-  }
+  await queueDigestDispatches(digestId, new Date(Date.now() + 60 * 60 * 1000));
 
   revalidatePath("/admin/digests");
   revalidatePath("/admin/subscribers");

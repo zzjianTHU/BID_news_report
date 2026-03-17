@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
 
 const navItems = [
   { href: "/", label: "Home", isActive: (pathname: string) => pathname === "/" },
@@ -17,14 +16,12 @@ export function SiteHeader() {
   return (
     <header className="site-header-shell">
       <div className="site-header-inner">
-        {/* Left: Brand */}
         <div className="brand-block">
           <Link className="brand-title" href="/">
             清华 AI 情报自动站
           </Link>
         </div>
 
-        {/* Center: Navigation */}
         <nav className="main-nav" aria-label="Primary">
           {navItems.map((item) => (
             <Link
@@ -37,11 +34,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        {/* Right: Actions */}
         <div className="header-actions">
-          <Link className="mini-link dark" href="/admin/login">
-            Sign in
-          </Link>
           <Link className="button button-primary compact" href="/subscribe">
             Subscribe
           </Link>

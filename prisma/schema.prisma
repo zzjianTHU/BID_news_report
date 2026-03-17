@@ -19,9 +19,15 @@ enum SourceType {
 }
 
 enum RunStatus {
+  RUNNING
   SUCCESS
   PARTIAL
   FAILED
+}
+
+enum IngestionTrigger {
+  SCHEDULED
+  MANUAL_SYNC
 }
 
 enum RiskLevel {
@@ -69,17 +75,24 @@ model User {
 
 model Source {
   id             String         @id @default(cuid())
+  feishuRecordId String?        @unique
   name           String
   slug           String         @unique
   type           SourceType
   url            String
   description    String
   frequency      String
+  fetchIntervalMinutes Int      @default(60)
   priority       Int            @default(50)
   trustScore     Int            @default(70)
   enabled        Boolean        @default(true)
   tags           String
   lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  failureCount   Int            @default(0)
+  lastError      String?
+  lockedAt       DateTime?
+  lastSyncedAt   DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   candidateItems CandidateItem[]
@@ -105,10 +118,12 @@ model IngestionRun {
   id             String      @id @default(cuid())
   sourceId       String?
   source         Source?     @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  trigger        IngestionTrigger @default(SCHEDULED)
   status         RunStatus
   itemsFound     Int
   itemsPublished Int
   notes          String?
+  errorSummary   String?
   startedAt      DateTime
   finishedAt     DateTime?
   createdAt      DateTime    @default(now())
@@ -131,6 +146,10 @@ model CandidateItem {
   aiConfidence   Float           @default(0.7)
   riskLevel      RiskLevel
   status         CandidateStatus @default(INGESTED)
+  reviewRequestedAt DateTime?
+  reviewMessageId String?
+  reviewDecisionBy String?
+  reviewDecisionAt DateTime?
   publishedAt    DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt

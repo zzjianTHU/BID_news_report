@@ -133,12 +133,12 @@ function buildSourceSlug(name: string, recordId: string) {
   return `${base}-${recordId.slice(-6).toLowerCase()}`;
 }
 
-function mapFeishuRecord(record: FeishuRecord): FeishuSourceRecord {
+function mapFeishuRecord(record: FeishuRecord): FeishuSourceRecord | null {
   const name = readText(pickField(record.fields, ["name", "Name", "名称"]));
   const url = readText(pickField(record.fields, ["url", "URL", "链接"]));
 
   if (!name || !url) {
-    throw new Error(`Feishu source record ${record.record_id} is missing a name or URL.`);
+    return null;
   }
 
   const fetchIntervalMinutes = Math.max(
@@ -166,6 +166,7 @@ export async function listFeishuSourceRecords() {
   const { appToken, tableId } = getFeishuSourceConfig();
 
   const items: FeishuSourceRecord[] = [];
+  let skippedCount = 0;
   let pageToken: string | undefined;
 
   do {
@@ -181,9 +182,22 @@ export async function listFeishuSourceRecords() {
       `/bitable/v1/apps/${appToken}/tables/${tableId}/records?${query.toString()}`
     );
 
-    items.push(...page.items.map((record) => mapFeishuRecord(record)));
+    for (const record of page.items) {
+      const mapped = mapFeishuRecord(record);
+
+      if (!mapped) {
+        skippedCount += 1;
+        continue;
+      }
+
+      items.push(mapped);
+    }
     pageToken = page.has_more ? page.page_token : undefined;
   } while (pageToken);
+
+  if (skippedCount > 0) {
+    console.warn(`Skipped ${skippedCount} Feishu source records because name or url was empty.`);
+  }
 
   return items;
 }

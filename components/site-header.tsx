@@ -12,75 +12,41 @@ const navItems = [
 ] as const;
 
 export function SiteHeader() {
-  const [isHidden, setIsHidden] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const pathname = usePathname();
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Only trigger hide/show if scrolling more than a buffer to prevent jitter
-      if (Math.abs(currentScrollY - lastScrollY) < 10) {
-        return;
-      }
-
-      // Hide if scrolling down and past header height (e.g. 80px)
-      if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        setIsHidden(true);
-      } else {
-        // Show if scrolling up or at top
-        setIsHidden(false);
-      }
-      
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
-
   return (
-    <header className={`site-header-shell ${isHidden ? "is-hidden" : ""}`}>
-      <div className="top-app-bar">
-        <div>
-          <p className="micro-label">THU BUSINESS INTELLIGENCE</p>
-          <p className="micro-domain">mobile-first ai dispatch</p>
-        </div>
-        <Link className="mini-link" href="/admin/login">
-          Admin
-        </Link>
-      </div>
-
-      <div className="site-header">
+    <header className="site-header-shell">
+      <div className="site-header-inner">
+        {/* Left: Brand */}
         <div className="brand-block">
           <Link className="brand-title" href="/">
             清华 AI 情报自动站
           </Link>
-          <p className="brand-subtitle">自动抓取、处理与发布，人工判断做最后一层把关。</p>
         </div>
 
+        {/* Center: Navigation */}
+        <nav className="main-nav" aria-label="Primary">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`main-nav-link ${item.isActive(pathname) ? "is-active" : ""}`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Right: Actions */}
         <div className="header-actions">
-          <Link className="button button-primary" href="/subscribe">
-            Subscribe
-          </Link>
           <Link className="mini-link dark" href="/admin/login">
             Sign in
           </Link>
+          <Link className="button button-primary compact" href="/subscribe">
+            Subscribe
+          </Link>
         </div>
       </div>
-
-      <nav className="main-nav" aria-label="Primary">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`main-nav-link ${item.isActive(pathname) ? "is-active" : ""}`}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
     </header>
   );
 }

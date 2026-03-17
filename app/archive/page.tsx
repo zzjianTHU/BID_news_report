@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { SiteHeader } from "@/components/site-header";
-import { StickySwitcher } from "@/components/sticky-switcher";
+
 import { getArchiveDigests } from "@/lib/data";
 
 export default async function ArchivePage() {
@@ -11,13 +11,7 @@ export default async function ArchivePage() {
     <main className="page-shell">
       <SiteHeader />
       <div className="page-body">
-        <StickySwitcher
-          items={[
-            { href: "/", label: "Main feed" },
-            { href: "/archive", label: "Digest archive", active: true },
-            { href: "/thoughts", label: "Thoughts" }
-          ]}
-        />
+
 
         <section className="section-block">
           <p className="section-kicker">Archive</p>

@@ -4,7 +4,7 @@ import { DigestCard } from "@/components/digest-card";
 import { FeedCard } from "@/components/feed-card";
 import { FilterDrawer } from "@/components/filter-drawer";
 import { SiteHeader } from "@/components/site-header";
-import { StickySwitcher } from "@/components/sticky-switcher";
+
 import { SubscribeCTA } from "@/components/subscribe-cta";
 import { ThoughtCard } from "@/components/thought-card";
 import { getFeedPosts, getLatestDigest, getPublishedThoughts, getSiteSnapshot } from "@/lib/data";
@@ -43,14 +43,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </section>
         )}
 
-        <StickySwitcher
-          items={[
-            { href: "/?tag=all&window=24h", label: "Main feed", active: true },
-            { href: latestDigest ? `/digest/${latestDigest.date}?view=3` : "/archive", label: "3 min digest" },
-            { href: latestDigest ? `/digest/${latestDigest.date}?view=8` : "/archive", label: "8 min digest" },
-            { href: "/thoughts", label: "Thoughts" }
-          ]}
-        />
+
 
         <section className="stats-strip">
           <article>

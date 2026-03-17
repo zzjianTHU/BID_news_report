@@ -1,5 +1,5 @@
 import { SiteHeader } from "@/components/site-header";
-import { StickySwitcher } from "@/components/sticky-switcher";
+
 import { SubscribeCTA } from "@/components/subscribe-cta";
 import { ThoughtCard } from "@/components/thought-card";
 import { getPublishedThoughts } from "@/lib/data";
@@ -11,13 +11,7 @@ export default async function ThoughtsPage() {
     <main className="page-shell">
       <SiteHeader />
       <div className="page-body">
-        <StickySwitcher
-          items={[
-            { href: "/", label: "Main feed" },
-            { href: "/archive", label: "Digests" },
-            { href: "/thoughts", label: "Thoughts", active: true }
-          ]}
-        />
+
 
         <section className="section-block">
           <p className="section-kicker">Thoughts</p>

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --env-file=.env --import tsx scripts/dev.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

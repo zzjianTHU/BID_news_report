@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/site-header";
 
 import { SubscribeCTA } from "@/components/subscribe-cta";
 import { ThoughtCard } from "@/components/thought-card";
-import { getFeedPosts, getLatestDigest, getPublishedThoughts, getSiteSnapshot } from "@/lib/data";
+import { getFeedPosts, getLatestDigest, getPublishedThoughts } from "@/lib/data";
 
 type HomePageProps = {
   searchParams: Promise<{
@@ -21,12 +21,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const tag = resolvedSearchParams.tag ?? "all";
   const window = resolvedSearchParams.window ?? "24h";
 
-  const [snapshot, latestDigest, feedPosts, thoughts] = await Promise.all([
-    getSiteSnapshot(),
-    getLatestDigest(),
-    getFeedPosts(tag, window),
-    getPublishedThoughts()
-  ]);
+  const latestDigest = await getLatestDigest();
+  const feedPosts = await getFeedPosts(tag, window);
+  const thoughts = await getPublishedThoughts();
 
   return (
     <main className="page-shell">
@@ -39,36 +36,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <section className="digest-hero-card">
             <p className="section-kicker">Latest digest</p>
             <h1>自动 digest 正在准备中</h1>
-            <p className="digest-hero-summary">先配置数据源并运行自动化脚本，首页就会出现最新大卡片。</p>
+            <p className="digest-hero-summary">最新一版还在整理中，稍后会在这里更新。</p>
           </section>
         )}
-
-
-
-        <section className="stats-strip">
-          <article>
-            <p>自动发布</p>
-            <strong>{snapshot.publishedCount}</strong>
-          </article>
-          <article>
-            <p>待飞书审批</p>
-            <strong>{snapshot.reviewCount}</strong>
-          </article>
-          <article>
-            <p>在线源</p>
-            <strong>{snapshot.activeSourceCount}</strong>
-          </article>
-          <article>
-            <p>订阅中</p>
-            <strong>{snapshot.subscriberCount}</strong>
-          </article>
-        </section>
 
         <section className="section-block">
           <div className="section-heading-row">
             <div>
               <p className="section-kicker">Recent posts</p>
-              <h2>自动主情报流</h2>
+              <h2>最新情报</h2>
             </div>
             <div className="section-actions">
               <FilterDrawer currentTag={tag} currentWindow={window} />
@@ -76,28 +52,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
 
           <div className="feed-list">
-            {feedPosts.map((post) => (
-              <FeedCard key={post.id} post={post} />
-            ))}
-          </div>
-        </section>
-
-        <section className="split-section">
-          <div className="split-card">
-            <p className="section-kicker">How it works</p>
-            <h2>自动化主链路</h2>
-            <ol className="flow-list">
-              <li>抓取数据源并标准化入库</li>
-              <li>AI 生成标题、摘要和“为什么值得看”</li>
-              <li>低风险直发，高风险进入飞书审批</li>
-              <li>汇总生成 3 分钟版 / 8 分钟版 digest</li>
-              <li>按订阅偏好发送邮件</li>
-            </ol>
-          </div>
-          <div className="split-card accent">
-            <p className="section-kicker">Queue health</p>
-            <h2>{snapshot.lowRiskAutoPublishRate}% 的已发布内容来自低风险直发</h2>
-            <p>编辑团队只需要在飞书里处理不确定、证据链不足或需要机构判断的内容，保持效率和可信度平衡。</p>
+            {feedPosts.length > 0 ? (
+              feedPosts.map((post) => (
+                <FeedCard key={post.id} post={post} />
+              ))
+            ) : (
+              <article className="split-card">
+                <p className="section-kicker">Nothing here yet</p>
+                <h3>新的情报还在整理中</h3>
+                <p className="page-intro">稍后回来，这里会出现今天最值得读的更新。</p>
+              </article>
+            )}
           </div>
         </section>
 

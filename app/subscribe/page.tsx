@@ -21,12 +21,12 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
         <section className="subscribe-page">
           <div className="subscribe-panel">
             <p className="section-kicker">Subscribe</p>
-            <h1 className="page-title">把自动 AI 情报站接入你的日常信息流。</h1>
+            <h1 className="page-title">把每天值得读的 AI 情报直接发到邮箱。</h1>
             <p className="page-intro">
-              先选关注范围、默认 digest 时长和推送频率。当前版本优先验证稳定触达，不做复杂个性化推荐。
+              先选关注范围、默认 digest 时长和推送频率。我们会尽量把重要更新压缩成更容易消费的日常阅读流。
             </p>
             <ul className="flow-list">
-              <li>主情报流：自动抓取和低风险直发</li>
+              <li>主情报流：当天最值得跟进的更新</li>
               <li>3 分钟 / 8 分钟 digest：适应不同阅读时长</li>
               <li>专题 / 思考：不定期发送结构化判断</li>
             </ul>
@@ -66,7 +66,7 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
             <button className="button button-primary" type="submit">
               完成订阅
             </button>
-            {success ? <p className="feedback good">订阅成功，新的 digest 会按你的默认偏好进入发送队列。</p> : null}
+            {success ? <p className="feedback good">订阅成功，新的 digest 会按你的默认偏好发送到邮箱。</p> : null}
             {error ? <p className="feedback danger">请先填写有效邮箱地址。</p> : null}
           </form>
         </section>

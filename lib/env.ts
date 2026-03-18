@@ -9,6 +9,11 @@ function requireEnv(name: string) {
   return value;
 }
 
+export function getOptionalEnv(name: string) {
+  const value = process.env[name];
+  return value && value.trim() ? value.trim() : null;
+}
+
 export function getAppBaseUrl() {
   return (process.env.APP_BASE_URL ?? DEFAULT_APP_BASE_URL).replace(/\/$/, "");
 }
@@ -26,11 +31,43 @@ export function getFeishuAppConfig() {
   };
 }
 
+function getFeishuBitableAppToken() {
+  return requireEnv("FEISHU_SOURCE_APP_TOKEN");
+}
+
+function getFeishuTableId(name: string) {
+  return requireEnv(name);
+}
+
 export function getFeishuSourceConfig() {
   return {
     ...getFeishuAppConfig(),
-    appToken: requireEnv("FEISHU_SOURCE_APP_TOKEN"),
-    tableId: requireEnv("FEISHU_SOURCE_TABLE_ID")
+    appToken: getFeishuBitableAppToken(),
+    tableId: getFeishuTableId("FEISHU_SOURCE_TABLE_ID")
+  };
+}
+
+export function getFeishuModelRouteConfig() {
+  return {
+    ...getFeishuAppConfig(),
+    appToken: getFeishuBitableAppToken(),
+    tableId: getFeishuTableId("FEISHU_MODEL_ROUTE_TABLE_ID")
+  };
+}
+
+export function getFeishuWorkflowConfig() {
+  return {
+    ...getFeishuAppConfig(),
+    appToken: getFeishuBitableAppToken(),
+    tableId: getFeishuTableId("FEISHU_WORKFLOW_TABLE_ID")
+  };
+}
+
+export function getFeishuDraftConfig() {
+  return {
+    ...getFeishuAppConfig(),
+    appToken: getFeishuBitableAppToken(),
+    tableId: getFeishuTableId("FEISHU_DRAFT_TABLE_ID")
   };
 }
 
@@ -44,4 +81,8 @@ export function getFeishuDigestChatId() {
 
 export function getWorkerSharedSecret() {
   return requireEnv("WORKER_SHARED_SECRET");
+}
+
+export function getContentWorkflowModel() {
+  return getOptionalEnv("CONTENT_WORKFLOW_MODEL");
 }

@@ -8,28 +8,27 @@ export default function AboutPage() {
       <div className="page-body">
         <section className="section-block">
           <p className="section-kicker">About</p>
-          <h1 className="page-title">这不是传统内容站，而是一套轻量情报自动化系统。</h1>
+          <h1 className="page-title">我们每天筛出真正值得读的 AI 变化。</h1>
           <p className="page-intro">
-            产品主体是 AI 驱动的采集、处理、摘要、分流和分发能力。公开站只承载最值得看的信息，飞书负责配置数据源、审批高风险内容和接收运行通知。
+            这里关注的不只是“又发了什么”，而是哪些模型、产品、基础设施和企业落地变化，真的值得你花时间跟进。
           </p>
         </section>
 
         <section className="split-section">
           <div className="split-card">
-            <p className="section-kicker">Method</p>
-            <h2>系统负责初稿，人负责判断</h2>
+            <p className="section-kicker">Coverage</p>
+            <h2>我们重点看这几类变化</h2>
             <ol className="flow-list">
-              <li>定时抓取 RSS 和网页列表</li>
-              <li>去重、打标签、抽取元信息</li>
-              <li>AI 生成标题、摘要与价值判断</li>
-              <li>低风险直发，高风险飞书审批</li>
-              <li>自动汇总 digest 和邮件任务</li>
+              <li>模型能力与产品路线更新</li>
+              <li>AI Infra 与平台生态变化</li>
+              <li>企业采用、组织动作与真实案例</li>
+              <li>值得延伸成专题的长期信号</li>
             </ol>
           </div>
           <div className="split-card accent">
             <p className="section-kicker">Editorial principle</p>
-            <h2>自动化不是替代机构判断，而是压缩整理成本。</h2>
-            <p>系统帮助团队更快进入“今天什么值得发、什么不应该发、什么值得写成长文”的判断状态。</p>
+            <h2>先帮你快速知道发生了什么，再说明为什么值得看。</h2>
+            <p>每条内容都会尽量压缩成可快速浏览的摘要，同时保留原始出处，方便你继续深读和判断。</p>
           </div>
         </section>
 

@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "清华 AI 情报自动站",
-  description: "AI 驱动的情报抓取、处理、自动发布与 digest 分发 MVP。"
+  description: "聚焦模型、产品、基础设施与企业落地的 AI 情报阅读站。"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

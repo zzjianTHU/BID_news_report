@@ -1,6 +1,11 @@
-import { SourceType } from "@prisma/client";
+import { DraftStatus, ModelProvider, SourceType } from "@prisma/client";
 
-import { getFeishuSourceConfig } from "@/lib/env";
+import {
+  getFeishuDraftConfig,
+  getFeishuModelRouteConfig,
+  getFeishuSourceConfig,
+  getFeishuWorkflowConfig
+} from "@/lib/env";
 import { feishuRequest } from "@/lib/feishu/client";
 import { slugify } from "@/lib/utils";
 
@@ -9,7 +14,18 @@ type FeishuRecord = {
   fields: Record<string, unknown>;
 };
 
-type FeishuSourceRecord = {
+type FeishuRecordPage = {
+  items: FeishuRecord[];
+  page_token?: string;
+  has_more?: boolean;
+};
+
+type FeishuTableConfig = {
+  appToken: string;
+  tableId: string;
+};
+
+export type FeishuSourceRecord = {
   recordId: string;
   name: string;
   slug: string;
@@ -24,10 +40,62 @@ type FeishuSourceRecord = {
   frequency: string;
 };
 
-type FeishuRecordPage = {
-  items: FeishuRecord[];
-  page_token?: string;
-  has_more?: boolean;
+export type FeishuModelRouteRecord = {
+  recordId: string;
+  routeKey: string;
+  enabled: boolean;
+  provider: ModelProvider;
+  baseUrl: string | null;
+  model: string;
+  apiKeyEnvName: string;
+  temperature: number;
+  maxTokens: number;
+  timeoutMs: number;
+  notes: string | null;
+};
+
+export type FeishuWorkflowRecord = {
+  recordId: string;
+  name: string;
+  version: string;
+  enabled: boolean;
+  classificationPrompt: string;
+  structuringPrompt: string;
+  detailMarkdownPrompt: string;
+  digestThreePrompt: string;
+  digestEightPrompt: string;
+  classificationRouteKey: string;
+  structuringRouteKey: string;
+  detailMarkdownRouteKey: string;
+  digestThreeRouteKey: string;
+  digestEightRouteKey: string;
+  riskKeywords: string;
+  autoPublishMinTrust: number;
+  autoPublishMinQuality: number;
+  notes: string | null;
+};
+
+export type FeishuDraftRecord = {
+  recordId: string;
+  candidateId: string;
+  status: DraftStatus;
+  title: string;
+  slug: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  tags: string;
+  riskLevel: string | null;
+  qualityScore: number;
+  workflowVersion: string | null;
+  summary: string;
+  worthReading: string;
+  structuredJson: string | null;
+  markdownDraft: string;
+  coverImageUrl: string | null;
+  editorNotes: string | null;
+  previewUrl: string | null;
+  publicUrl: string | null;
+  publishedAt: string | null;
 };
 
 function pickField(fields: Record<string, unknown>, aliases: string[]) {
@@ -107,6 +175,40 @@ function normalizeSourceType(value: unknown) {
   return SourceType.RSS;
 }
 
+function normalizeModelProvider(value: unknown) {
+  const normalized = readText(value).toUpperCase();
+
+  switch (normalized) {
+    case "OPENAI":
+      return ModelProvider.OPENAI;
+    case "ANTHROPIC":
+      return ModelProvider.ANTHROPIC;
+    case "GEMINI":
+      return ModelProvider.GEMINI;
+    case "OPENAI_COMPATIBLE":
+    default:
+      return ModelProvider.OPENAI_COMPATIBLE;
+  }
+}
+
+function normalizeDraftStatus(value: unknown) {
+  const normalized = readText(value).toUpperCase();
+
+  switch (normalized) {
+    case "AUTO_PUBLISHED":
+      return DraftStatus.AUTO_PUBLISHED;
+    case "APPROVED":
+      return DraftStatus.APPROVED;
+    case "REJECTED":
+      return DraftStatus.REJECTED;
+    case "NEEDS_REWRITE":
+      return DraftStatus.NEEDS_REWRITE;
+    case "PENDING_REVIEW":
+    default:
+      return DraftStatus.PENDING_REVIEW;
+  }
+}
+
 function normalizeTags(value: unknown) {
   const raw = readText(value);
   return raw
@@ -133,7 +235,63 @@ function buildSourceSlug(name: string, recordId: string) {
   return `${base}-${recordId.slice(-6).toLowerCase()}`;
 }
 
-function mapFeishuRecord(record: FeishuRecord): FeishuSourceRecord | null {
+async function listFeishuRecords(config: FeishuTableConfig) {
+  const items: FeishuRecord[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const query = new URLSearchParams({
+      page_size: "100"
+    });
+
+    if (pageToken) {
+      query.set("page_token", pageToken);
+    }
+
+    const page = await feishuRequest<FeishuRecordPage>(
+      `/bitable/v1/apps/${config.appToken}/tables/${config.tableId}/records?${query.toString()}`
+    );
+
+    items.push(...page.items);
+    pageToken = page.has_more ? page.page_token : undefined;
+  } while (pageToken);
+
+  return items;
+}
+
+async function createFeishuRecord(config: FeishuTableConfig, fields: Record<string, unknown>) {
+  const data = await feishuRequest<{ record: FeishuRecord }>(
+    `/bitable/v1/apps/${config.appToken}/tables/${config.tableId}/records`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        fields
+      })
+    }
+  );
+
+  return data.record;
+}
+
+async function updateFeishuRecord(
+  config: FeishuTableConfig,
+  recordId: string,
+  fields: Record<string, unknown>
+) {
+  const data = await feishuRequest<{ record: FeishuRecord }>(
+    `/bitable/v1/apps/${config.appToken}/tables/${config.tableId}/records/${recordId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        fields
+      })
+    }
+  );
+
+  return data.record;
+}
+
+function mapFeishuSourceRecord(record: FeishuRecord): FeishuSourceRecord | null {
   const name = readText(pickField(record.fields, ["name", "Name", "名称"]));
   const url = readText(pickField(record.fields, ["url", "URL", "链接"]));
 
@@ -162,42 +320,221 @@ function mapFeishuRecord(record: FeishuRecord): FeishuSourceRecord | null {
   };
 }
 
-export async function listFeishuSourceRecords() {
-  const { appToken, tableId } = getFeishuSourceConfig();
+function mapFeishuModelRouteRecord(record: FeishuRecord): FeishuModelRouteRecord | null {
+  const routeKey = readText(pickField(record.fields, ["routeKey", "RouteKey"]));
+  const model = readText(pickField(record.fields, ["model", "Model"]));
+  const apiKeyEnvName = readText(pickField(record.fields, ["apiKeyEnvName", "ApiKeyEnvName"]));
 
-  const items: FeishuSourceRecord[] = [];
-  let skippedCount = 0;
-  let pageToken: string | undefined;
-
-  do {
-    const query = new URLSearchParams({
-      page_size: "100"
-    });
-
-    if (pageToken) {
-      query.set("page_token", pageToken);
-    }
-
-    const page = await feishuRequest<FeishuRecordPage>(
-      `/bitable/v1/apps/${appToken}/tables/${tableId}/records?${query.toString()}`
-    );
-
-    for (const record of page.items) {
-      const mapped = mapFeishuRecord(record);
-
-      if (!mapped) {
-        skippedCount += 1;
-        continue;
-      }
-
-      items.push(mapped);
-    }
-    pageToken = page.has_more ? page.page_token : undefined;
-  } while (pageToken);
-
-  if (skippedCount > 0) {
-    console.warn(`Skipped ${skippedCount} Feishu source records because name or url was empty.`);
+  if (!routeKey || !model || !apiKeyEnvName) {
+    return null;
   }
 
+  return {
+    recordId: record.record_id,
+    routeKey,
+    enabled: readBoolean(pickField(record.fields, ["enabled", "Enabled"]), true),
+    provider: normalizeModelProvider(pickField(record.fields, ["provider", "Provider"])),
+    baseUrl: readText(pickField(record.fields, ["baseUrl", "BaseUrl"])) || null,
+    model,
+    apiKeyEnvName,
+    temperature: readNumber(pickField(record.fields, ["temperature", "Temperature"]), 0.2),
+    maxTokens: readNumber(pickField(record.fields, ["maxTokens", "MaxTokens"]), 2000),
+    timeoutMs: readNumber(pickField(record.fields, ["timeoutMs", "TimeoutMs"]), 30000),
+    notes: readText(pickField(record.fields, ["notes", "Notes"])) || null
+  };
+}
+
+function mapFeishuWorkflowRecord(record: FeishuRecord): FeishuWorkflowRecord | null {
+  const name = readText(pickField(record.fields, ["name", "Name"]));
+  const classificationPrompt = readText(
+    pickField(record.fields, ["classificationPrompt", "ClassificationPrompt"])
+  );
+  const structuringPrompt = readText(
+    pickField(record.fields, ["structuringPrompt", "StructuringPrompt"])
+  );
+  const detailMarkdownPrompt = readText(
+    pickField(record.fields, ["detailMarkdownPrompt", "DetailMarkdownPrompt"])
+  );
+  const digestThreePrompt = readText(
+    pickField(record.fields, ["digestThreePrompt", "DigestThreePrompt"])
+  );
+  const digestEightPrompt = readText(
+    pickField(record.fields, ["digestEightPrompt", "DigestEightPrompt"])
+  );
+
+  if (
+    !name ||
+    !classificationPrompt ||
+    !structuringPrompt ||
+    !detailMarkdownPrompt ||
+    !digestThreePrompt ||
+    !digestEightPrompt
+  ) {
+    return null;
+  }
+
+  return {
+    recordId: record.record_id,
+    name,
+    version: readText(pickField(record.fields, ["version", "Version"])) || "v1",
+    enabled: readBoolean(pickField(record.fields, ["enabled", "Enabled"]), false),
+    classificationPrompt,
+    structuringPrompt,
+    detailMarkdownPrompt,
+    digestThreePrompt,
+    digestEightPrompt,
+    classificationRouteKey:
+      readText(pickField(record.fields, ["classificationRouteKey", "ClassificationRouteKey"])) || "",
+    structuringRouteKey:
+      readText(pickField(record.fields, ["structuringRouteKey", "StructuringRouteKey"])) || "",
+    detailMarkdownRouteKey:
+      readText(pickField(record.fields, ["detailMarkdownRouteKey", "DetailMarkdownRouteKey"])) || "",
+    digestThreeRouteKey:
+      readText(pickField(record.fields, ["digestThreeRouteKey", "DigestThreeRouteKey"])) || "",
+    digestEightRouteKey:
+      readText(pickField(record.fields, ["digestEightRouteKey", "DigestEightRouteKey"])) || "",
+    riskKeywords: readText(pickField(record.fields, ["riskKeywords", "RiskKeywords"])),
+    autoPublishMinTrust: readNumber(
+      pickField(record.fields, ["autoPublishMinTrust", "AutoPublishMinTrust"]),
+      75
+    ),
+    autoPublishMinQuality: readNumber(
+      pickField(record.fields, ["autoPublishMinQuality", "AutoPublishMinQuality"]),
+      0.75
+    ),
+    notes: readText(pickField(record.fields, ["notes", "Notes"])) || null
+  };
+}
+
+function mapFeishuDraftRecord(record: FeishuRecord): FeishuDraftRecord | null {
+  const candidateId = readText(pickField(record.fields, ["candidateId", "CandidateId"]));
+  if (!candidateId) {
+    return null;
+  }
+
+  return {
+    recordId: record.record_id,
+    candidateId,
+    status: normalizeDraftStatus(pickField(record.fields, ["status", "Status"])),
+    title: readText(pickField(record.fields, ["title", "Title"])),
+    slug: readText(pickField(record.fields, ["slug", "Slug"])) || null,
+    sourceName: readText(pickField(record.fields, ["sourceName", "SourceName"])) || null,
+    sourceUrl: readText(pickField(record.fields, ["sourceUrl", "SourceUrl"])) || null,
+    tags: normalizeTags(pickField(record.fields, ["tags", "Tags"])),
+    riskLevel: readText(pickField(record.fields, ["riskLevel", "RiskLevel"])) || null,
+    qualityScore: readNumber(pickField(record.fields, ["qualityScore", "QualityScore"]), 0),
+    workflowVersion: readText(pickField(record.fields, ["workflowVersion", "WorkflowVersion"])) || null,
+    summary: readText(pickField(record.fields, ["summary", "Summary"])),
+    worthReading: readText(pickField(record.fields, ["worthReading", "WorthReading"])),
+    structuredJson: readText(pickField(record.fields, ["structuredJson", "StructuredJson"])) || null,
+    markdownDraft: readText(pickField(record.fields, ["markdownDraft", "MarkdownDraft"])),
+    coverImageUrl: readText(pickField(record.fields, ["coverImageUrl", "CoverImageUrl"])) || null,
+    editorNotes: readText(pickField(record.fields, ["editorNotes", "EditorNotes"])) || null,
+    previewUrl: readText(pickField(record.fields, ["previewUrl", "PreviewUrl"])) || null,
+    publicUrl: readText(pickField(record.fields, ["publicUrl", "PublicUrl"])) || null,
+    publishedAt: readText(pickField(record.fields, ["publishedAt", "PublishedAt"])) || null
+  };
+}
+
+function warnOnSkippedRecords(entity: string, skippedCount: number) {
+  if (skippedCount > 0) {
+    console.warn(`Skipped ${skippedCount} Feishu ${entity} records because required fields were empty.`);
+  }
+}
+
+export async function listFeishuSourceRecords() {
+  const config = getFeishuSourceConfig();
+  const records = await listFeishuRecords(config);
+  const items: FeishuSourceRecord[] = [];
+  let skippedCount = 0;
+
+  for (const record of records) {
+    const mapped = mapFeishuSourceRecord(record);
+    if (!mapped) {
+      skippedCount += 1;
+      continue;
+    }
+    items.push(mapped);
+  }
+
+  warnOnSkippedRecords("source", skippedCount);
   return items;
+}
+
+export async function listFeishuModelRouteRecords() {
+  const config = getFeishuModelRouteConfig();
+  const records = await listFeishuRecords(config);
+  const items: FeishuModelRouteRecord[] = [];
+  let skippedCount = 0;
+
+  for (const record of records) {
+    const mapped = mapFeishuModelRouteRecord(record);
+    if (!mapped) {
+      skippedCount += 1;
+      continue;
+    }
+    items.push(mapped);
+  }
+
+  warnOnSkippedRecords("model route", skippedCount);
+  return items;
+}
+
+export async function listFeishuWorkflowRecords() {
+  const config = getFeishuWorkflowConfig();
+  const records = await listFeishuRecords(config);
+  const items: FeishuWorkflowRecord[] = [];
+  let skippedCount = 0;
+
+  for (const record of records) {
+    const mapped = mapFeishuWorkflowRecord(record);
+    if (!mapped) {
+      skippedCount += 1;
+      continue;
+    }
+    items.push(mapped);
+  }
+
+  warnOnSkippedRecords("workflow", skippedCount);
+  return items;
+}
+
+export async function listFeishuDraftRecords() {
+  const config = getFeishuDraftConfig();
+  const records = await listFeishuRecords(config);
+  const items: FeishuDraftRecord[] = [];
+  let skippedCount = 0;
+
+  for (const record of records) {
+    const mapped = mapFeishuDraftRecord(record);
+    if (!mapped) {
+      skippedCount += 1;
+      continue;
+    }
+    items.push(mapped);
+  }
+
+  warnOnSkippedRecords("draft", skippedCount);
+  return items;
+}
+
+export async function createOrUpdateFeishuDraftRecord(
+  recordId: string | null,
+  fields: Record<string, unknown>
+) {
+  const config = getFeishuDraftConfig();
+  const normalizedFields = Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [
+      key,
+      typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null
+        ? value
+        : JSON.stringify(value)
+    ])
+  );
+
+  if (recordId) {
+    return updateFeishuRecord(config, recordId, normalizedFields);
+  }
+
+  return createFeishuRecord(config, normalizedFields);
 }

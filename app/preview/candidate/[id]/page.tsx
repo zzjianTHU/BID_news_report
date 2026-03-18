@@ -18,6 +18,7 @@ export default async function CandidatePreviewPage({ params }: CandidatePreviewP
   }
 
   const tags = parseTags(candidate.tags);
+  const coverLabel = candidate.coverImageAlt || candidate.title;
 
   return (
     <main className="page-shell">
@@ -31,6 +32,14 @@ export default async function CandidatePreviewPage({ params }: CandidatePreviewP
 
         <section className="split-section">
           <article className="split-card">
+            {candidate.coverImageUrl ? (
+              <div
+                aria-label={coverLabel}
+                className="candidate-cover-shell"
+                role="img"
+                style={{ backgroundImage: `url(${candidate.coverImageUrl})` }}
+              />
+            ) : null}
             <div className="inline-tags">
               {tags.slice(0, 4).map((tag) => (
                 <span className="tag-pill" key={tag}>

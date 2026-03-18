@@ -32,6 +32,8 @@ type SourcePayload = {
   excerpt: string;
   rawContent: string;
   tags?: string;
+  coverImageUrl?: string;
+  coverImageAlt?: string;
 };
 
 type IngestCycleResult = {
@@ -49,6 +51,72 @@ const DEFAULT_AUTO_PUBLISH_MIN_TRUST = 80;
 const DEFAULT_RISK_KEYWORDS = ["rumor", "unverified", "匿名", "截图", "未经证实", "小道消息", "转载无来源"];
 
 const rssParser = new Parser();
+
+function normalizeMediaUrl(rawUrl: string | undefined | null, baseUrl?: string) {
+  if (!rawUrl) {
+    return null;
+  }
+
+  const trimmed = rawUrl.trim();
+  if (!trimmed || trimmed.startsWith("data:") || /\s/.test(trimmed)) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed, baseUrl);
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeMediaReference(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (/,\s*\S+\s+\d+[wx]/i.test(trimmed)) {
+    return true;
+  }
+
+  if (/\s/.test(trimmed)) {
+    return false;
+  }
+
+  return (
+    /^(https?:)?\/\//i.test(trimmed) ||
+    /^(\/|\.\/|\.\.\/)/.test(trimmed) ||
+    trimmed.includes("srcset") ||
+    trimmed.includes("/") ||
+    /\.(avif|gif|jpe?g|png|svg|webp)(?:$|[?#])/i.test(trimmed)
+  );
+}
+
+function hasRenderableCover(url: string | undefined | null) {
+  const normalized = normalizeMediaUrl(url);
+  if (!normalized) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    const pathname = parsed.pathname.toLowerCase();
+    const search = parsed.search.toLowerCase();
+
+    return (
+      /\.(avif|gif|jpe?g|png|svg|webp)(?:$|[?#])/i.test(`${pathname}${search}`) ||
+      /\/(images?|media|assets?|static|thumbnails?|social|og)\//i.test(pathname) ||
+      /(^|\.)(img|image|images|media|cdn)\./i.test(parsed.hostname) ||
+      /(img|image|format|fm|width|height|w|h)=/i.test(search)
+    );
+  } catch {
+    return false;
+  }
+}
 
 function normalizeUrl(rawUrl: string, baseUrl?: string) {
   try {
@@ -133,19 +201,170 @@ function resolvePayloadTags(source: Source, payload: SourcePayload) {
   return source.tags;
 }
 
+function parseSrcset(value: string | undefined | null, baseUrl?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const candidate = value
+    .split(",")
+    .map((entry) => entry.trim().split(/\s+/)[0])
+    .find(Boolean);
+
+  return normalizeMediaUrl(candidate, baseUrl);
+}
+
+function readImageCandidate(value: unknown, baseUrl?: string): string | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    if (value.includes("<img")) {
+      const $ = cheerio.load(value);
+      const image = $("img").first();
+
+      return (
+        normalizeMediaUrl(image.attr("src"), baseUrl) ||
+        parseSrcset(image.attr("srcset"), baseUrl) ||
+        normalizeMediaUrl(image.attr("data-src"), baseUrl)
+      );
+    }
+
+    if (!looksLikeMediaReference(value)) {
+      return null;
+    }
+
+    return normalizeMediaUrl(value, baseUrl) || parseSrcset(value, baseUrl);
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const candidate = readImageCandidate(entry, baseUrl);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+
+    for (const key of ["url", "src", "href", "origin_url", "download_url", "image", "cover"]) {
+      const candidate = readImageCandidate(record[key], baseUrl);
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return readImageCandidate(record.srcset, baseUrl);
+  }
+
+  return null;
+}
+
+function extractPageImageFromHtml(html: string, pageUrl: string) {
+  const $ = cheerio.load(html);
+  const metaImage =
+    normalizeMediaUrl($('meta[property="og:image"]').attr("content"), pageUrl) ||
+    normalizeMediaUrl($('meta[name="twitter:image"]').attr("content"), pageUrl) ||
+    normalizeMediaUrl($('meta[property="twitter:image"]').attr("content"), pageUrl);
+
+  if (metaImage) {
+    return {
+      url: metaImage,
+      alt:
+        $('meta[property="og:image:alt"]').attr("content")?.trim() ||
+        $('meta[name="twitter:image:alt"]').attr("content")?.trim() ||
+        null
+    };
+  }
+
+  const image = $("article img, main img, img").first();
+  const imageUrl =
+    normalizeMediaUrl(image.attr("src"), pageUrl) ||
+    normalizeMediaUrl(image.attr("data-src"), pageUrl) ||
+    parseSrcset(image.attr("srcset"), pageUrl);
+
+  return {
+    url: imageUrl,
+    alt: image.attr("alt")?.trim() || null
+  };
+}
+
+async function fetchArticleCover(url: string) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "BID-News-Worker/1.0"
+      }
+    });
+
+    if (!response.ok) {
+      return {
+        coverImageUrl: null,
+        coverImageAlt: null
+      };
+    }
+
+    const html = await response.text();
+    const image = extractPageImageFromHtml(html, url);
+
+    return {
+      coverImageUrl: image.url,
+      coverImageAlt: image.alt
+    };
+  } catch {
+    return {
+      coverImageUrl: null,
+      coverImageAlt: null
+    };
+  }
+}
+
+function getListingImage(element: cheerio.Cheerio<any>, sourceUrl: string) {
+  return (
+    normalizeMediaUrl(element.find("img").first().attr("src"), sourceUrl) ||
+    normalizeMediaUrl(element.find("img").first().attr("data-src"), sourceUrl) ||
+    parseSrcset(element.find("img").first().attr("srcset"), sourceUrl)
+  );
+}
+
 async function fetchRssItems(source: Source) {
   const feed = await rssParser.parseURL(source.url);
+  const items: SourcePayload[] = [];
 
-  return (feed.items ?? [])
-    .slice(0, FEED_FETCH_LIMIT)
-    .map((item) => ({
-      title: item.title?.trim() || feed.title?.trim() || source.name,
-      url: normalizeUrl(item.link || source.url),
-      excerpt: clampText(stripHtml(item.contentSnippet || item.content || item.summary || source.description), 180),
-      rawContent: stripHtml(item.content || item.contentSnippet || item.summary || source.description),
-      tags: source.tags
-    }))
-    .filter((item) => item.title && item.url);
+  for (const item of (feed.items ?? []).slice(0, FEED_FETCH_LIMIT)) {
+    const title = item.title?.trim() || feed.title?.trim() || source.name;
+    const url = normalizeUrl(item.link || source.url);
+    const rawContent = stripHtml(item.content || item.contentSnippet || item.summary || source.description);
+    const inlineImage =
+      readImageCandidate((item as Record<string, unknown>).enclosure, url) ||
+      readImageCandidate((item as Record<string, unknown>)["media:content"], url) ||
+      readImageCandidate((item as Record<string, unknown>)["media:thumbnail"], url) ||
+      readImageCandidate(item.content, url) ||
+      readImageCandidate(item.contentSnippet, url);
+
+    const remoteCover = inlineImage
+      ? {
+          coverImageUrl: inlineImage,
+          coverImageAlt: title
+        }
+      : await fetchArticleCover(url);
+
+    items.push({
+      title,
+      url,
+      excerpt: clampText(rawContent || source.description, 180),
+      rawContent,
+      tags: source.tags,
+      coverImageUrl: remoteCover.coverImageUrl ?? undefined,
+      coverImageAlt: remoteCover.coverImageAlt ?? title
+    });
+  }
+
+  return items.filter((item) => item.title && item.url);
 }
 
 async function fetchWebItems(source: Source) {
@@ -186,20 +405,36 @@ async function fetchWebItems(source: Source) {
 
     const container = $(element).closest("article, li, div");
     const excerpt = clampText(container.text().replace(/\s+/g, " ").trim(), 180) || source.description;
+    const coverImageUrl = getListingImage(container, source.url) || getListingImage($(element), source.url);
 
     items.push({
       title,
       url,
       excerpt,
       rawContent: excerpt,
-      tags: source.tags
+      tags: source.tags,
+      coverImageUrl: coverImageUrl ?? undefined,
+      coverImageAlt: title
     });
 
     return undefined;
   });
 
   if (items.length > 0) {
-    return items;
+    return Promise.all(
+      items.map(async (item) => {
+        if (item.coverImageUrl) {
+          return item;
+        }
+
+        const remoteCover = await fetchArticleCover(item.url);
+        return {
+          ...item,
+          coverImageUrl: remoteCover.coverImageUrl ?? undefined,
+          coverImageAlt: remoteCover.coverImageAlt ?? item.title
+        };
+      })
+    );
   }
 
   const pageTitle = $("title").first().text().trim() || source.name;
@@ -208,13 +443,17 @@ async function fetchWebItems(source: Source) {
     $('meta[property="og:description"]').attr("content")?.trim() ||
     source.description;
 
+  const fallbackCover = extractPageImageFromHtml(html, source.url);
+
   return [
     {
       title: pageTitle,
       url: normalizeUrl(source.url),
       excerpt: clampText(pageDescription, 180),
       rawContent: pageDescription,
-      tags: source.tags
+      tags: source.tags,
+      coverImageUrl: fallbackCover.url ?? undefined,
+      coverImageAlt: fallbackCover.alt ?? pageTitle
     }
   ];
 }
@@ -376,6 +615,30 @@ async function ingestSource(source: Source, workflow: WorkflowConfig | null) {
       });
 
       if (existing) {
+        if (
+          payload.coverImageUrl &&
+          (!hasRenderableCover(existing.coverImageUrl) || existing.coverImageUrl !== payload.coverImageUrl)
+        ) {
+          await prisma.candidateItem.update({
+            where: {
+              id: existing.id
+            },
+            data: {
+              coverImageUrl: payload.coverImageUrl,
+              coverImageAlt: payload.coverImageAlt ?? payload.title
+            }
+          });
+        } else if (existing.coverImageUrl && !hasRenderableCover(existing.coverImageUrl)) {
+          await prisma.candidateItem.update({
+            where: {
+              id: existing.id
+            },
+            data: {
+              coverImageUrl: null,
+              coverImageAlt: null
+            }
+          });
+        }
         duplicateCount += 1;
         continue;
       }
@@ -394,6 +657,8 @@ async function ingestSource(source: Source, workflow: WorkflowConfig | null) {
           excerpt: clampText(payload.excerpt || source.description, 220),
           rawContent: clampText(payload.rawContent || payload.excerpt || source.description, 2400),
           tags: resolvePayloadTags(source, payload),
+          coverImageUrl: payload.coverImageUrl,
+          coverImageAlt: payload.coverImageAlt ?? payload.title,
           aiSummary: ai.summary,
           worthReading: ai.worthReading,
           aiConfidence: riskLevel === RiskLevel.LOW ? 0.88 : 0.54,

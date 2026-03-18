@@ -9,9 +9,9 @@ export function SubscribeCTA({ compact = false }: SubscribeCTAProps) {
     <section className={`subscribe-cta ${compact ? "is-compact" : ""}`}>
       <div>
         <p className="section-kicker">Subscribe</p>
-        <h2>把 AI 自动情报和每日 digest 直接发到邮箱。</h2>
+        <h2>把每天值得读的 AI digest 直接发到邮箱。</h2>
         <p>
-          首版只做最轻量订阅：主情报流、默认阅读时长和推送频率。先把稳定触达跑通，再迭代更细偏好。
+          选好关注范围和默认阅读时长，就能用更短时间跟上真正重要的变化。
         </p>
       </div>
       <Link className="button button-primary" href="/subscribe">

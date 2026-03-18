@@ -615,11 +615,25 @@ button {
   height: 90px;
   aspect-ratio: auto;
   padding: 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  overflow: hidden;
   border-radius: 20px;
   background: var(--bg-soft);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   color: var(--muted);
   font-size: 0.85rem;
   border: 1px solid var(--line);
+}
+
+.feed-thumb span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--accent);
 }
 
 .text-link {
@@ -634,6 +648,18 @@ button {
 
 .split-card {
   padding: 22px;
+}
+
+.candidate-cover-shell {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 16px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background-color: var(--bg-soft);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .split-card.accent {

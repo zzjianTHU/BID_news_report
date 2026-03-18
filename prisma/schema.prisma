@@ -63,6 +63,21 @@ enum DispatchStatus {
   FAILED
 }
 
+enum ModelProvider {
+  OPENAI
+  OPENAI_COMPATIBLE
+  ANTHROPIC
+  GEMINI
+}
+
+enum DraftStatus {
+  AUTO_PUBLISHED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  NEEDS_REWRITE
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -101,17 +116,49 @@ model Source {
 
 model WorkflowConfig {
   id                 String   @id @default(cuid())
+  feishuRecordId      String?  @unique
   name               String   @unique
+  version            String   @default("v1")
   summaryPrompt      String
   highlightPrompt    String
+  classificationPrompt String @default("")
+  structuringPrompt  String   @default("")
+  detailMarkdownPrompt String @default("")
   riskKeywords       String
   autoPublishMinTrust Int
+  autoPublishMinQuality Float @default(0.75)
   digestRuleThree    String
   digestRuleEight    String
+  digestThreePrompt  String   @default("")
+  digestEightPrompt  String   @default("")
+  classificationRouteKey String?
+  structuringRouteKey String?
+  detailMarkdownRouteKey String?
+  digestThreeRouteKey String?
+  digestEightRouteKey String?
   notes              String?
   active             Boolean  @default(true)
+  lastSyncedAt       DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+model ModelRouteConfig {
+  id            String        @id @default(cuid())
+  feishuRecordId String?      @unique
+  routeKey      String        @unique
+  enabled       Boolean       @default(true)
+  provider      ModelProvider
+  baseUrl       String?
+  model         String
+  apiKeyEnvName String
+  temperature   Float         @default(0.2)
+  maxTokens     Int           @default(2000)
+  timeoutMs     Int           @default(30000)
+  notes         String?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
 
 model IngestionRun {
@@ -141,9 +188,19 @@ model CandidateItem {
   excerpt        String
   rawContent     String
   tags           String
+  coverImageUrl  String?
+  coverImageAlt  String?
   aiSummary      String
   worthReading   String
   aiConfidence   Float           @default(0.7)
+  workflowVersion String?
+  qualityScore   Float           @default(0)
+  classificationJson Json?
+  structuredJson Json?
+  draftMarkdown  String?
+  feishuDraftRecordId String?    @unique
+  draftStatus    DraftStatus     @default(PENDING_REVIEW)
+  editorNotes    String?
   riskLevel      RiskLevel
   status         CandidateStatus @default(INGESTED)
   reviewRequestedAt DateTime?
@@ -160,10 +217,15 @@ model AutoPost {
   id              String         @id @default(cuid())
   candidateItemId String         @unique
   candidateItem   CandidateItem  @relation(fields: [candidateItemId], references: [id], onDelete: Cascade)
+  slug            String?        @unique
   title           String
   summary         String
   worthReading    String
   body            String
+  bodyMarkdown    String?
+  tldr            Json?
+  workflowVersion String?
+  qualityScore    Float          @default(0)
   tags            String
   sourceLabel     String
   sourceUrl       String
@@ -196,6 +258,7 @@ model DigestEntry {
   sourceLabel  String
   sourceUrl    String
   tag          String
+  postSlug     String?
 }
 
 model ThoughtPost {

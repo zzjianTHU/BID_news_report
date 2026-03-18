@@ -10,6 +10,8 @@ type FeedCardProps = {
 
 export function FeedCard({ post, compact = false }: FeedCardProps) {
   const tags = parseTags(post.tags);
+  const coverImageUrl = post.candidateItem.coverImageUrl;
+  const coverImageAlt = post.candidateItem.coverImageAlt || post.title;
 
   return (
     <article className={`feed-card ${compact ? "feed-card-compact" : ""}`}>
@@ -30,8 +32,13 @@ export function FeedCard({ post, compact = false }: FeedCardProps) {
         </div>
       </div>
       <div className="feed-card-side">
-        <div className="feed-thumb">
-          <span>{tags[0] ?? "AI"}</span>
+        <div
+          aria-label={coverImageAlt}
+          className="feed-thumb"
+          role={coverImageUrl ? "img" : undefined}
+          style={coverImageUrl ? { backgroundImage: `url(${coverImageUrl})` } : undefined}
+        >
+          {!coverImageUrl ? <span>{tags[0] ?? "AI"}</span> : null}
         </div>
         <Link className="text-link" href={post.sourceUrl} target="_blank">
           Read source

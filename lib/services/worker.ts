@@ -2,8 +2,9 @@ import Parser from "rss-parser";
 import * as cheerio from "cheerio";
 import {
   CandidateStatus,
+  DraftStatus,
   IngestionTrigger,
-  RiskLevel,
+  type ModelRouteConfig,
   RunStatus,
   SourceType,
   type CandidateItem,
@@ -11,30 +12,29 @@ import {
   type WorkflowConfig
 } from "@prisma/client";
 
-import { getFeishuDigestChatId, getFeishuReviewChatId } from "@/lib/env";
-import { listFeishuSourceRecords } from "@/lib/feishu/bitable";
+import { getAppBaseUrl, getFeishuDigestChatId, getFeishuReviewChatId } from "@/lib/env";
+import {
+  createOrUpdateFeishuDraftRecord,
+  listFeishuDraftRecords,
+  listFeishuModelRouteRecords,
+  listFeishuSourceRecords,
+  listFeishuWorkflowRecords
+} from "@/lib/feishu/bitable";
 import { buildDigestCard, buildReviewCard } from "@/lib/feishu/cards";
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from "@/lib/feishu/client";
 import { prisma } from "@/lib/prisma";
+import { type SourcePayload, runSingleContentWorkflow } from "@/lib/services/content-workflow";
 import { generateDigestForDate, queueDigestDispatches, dispatchPendingEmailQueue } from "@/lib/services/digest";
-import { publishCandidate } from "@/lib/services/publishing";
+import { publishCandidate, rejectCandidate } from "@/lib/services/publishing";
 import { slugify } from "@/lib/utils";
 
 export type WorkerTaskName =
   | "sync-feishu-sources"
+  | "sync-feishu-control-plane"
   | "run-ingest-cycle"
+  | "sync-feishu-draft-decisions"
   | "generate-digest"
   | "dispatch-email";
-
-type SourcePayload = {
-  title: string;
-  url: string;
-  excerpt: string;
-  rawContent: string;
-  tags?: string;
-  coverImageUrl?: string;
-  coverImageAlt?: string;
-};
 
 type IngestCycleResult = {
   dueSources: number;
@@ -47,8 +47,6 @@ type IngestCycleResult = {
 
 const FEED_FETCH_LIMIT = 5;
 const LOCK_TIMEOUT_MS = 15 * 60 * 1000;
-const DEFAULT_AUTO_PUBLISH_MIN_TRUST = 80;
-const DEFAULT_RISK_KEYWORDS = ["rumor", "unverified", "匿名", "截图", "未经证实", "小道消息", "转载无来源"];
 
 const rssParser = new Parser();
 
@@ -152,40 +150,6 @@ function clampText(value: string, maxLength: number) {
   }
 
   return `${value.slice(0, maxLength - 1).trim()}…`;
-}
-
-function buildSummary(title: string, rawContent: string) {
-  const cleaned = clampText(stripHtml(rawContent), 150);
-  const summary = cleaned || title;
-
-  return {
-    summary,
-    worthReading: `这条更新值得继续跟踪，因为它把“${clampText(title, 28)}”落到了更具体的动作或信号上。`
-  };
-}
-
-function getWorkflowConfigOrFallback(workflow: WorkflowConfig | null) {
-  const riskKeywords = workflow?.riskKeywords
-    ?.split(",")
-    .map((keyword) => keyword.trim())
-    .filter(Boolean);
-
-  return {
-    autoPublishMinTrust: workflow?.autoPublishMinTrust ?? DEFAULT_AUTO_PUBLISH_MIN_TRUST,
-    riskKeywords: riskKeywords && riskKeywords.length > 0 ? riskKeywords : DEFAULT_RISK_KEYWORDS
-  };
-}
-
-function detectRiskLevel(source: Source, workflow: WorkflowConfig | null, payload: SourcePayload) {
-  const { autoPublishMinTrust, riskKeywords } = getWorkflowConfigOrFallback(workflow);
-  const corpus = `${payload.title} ${payload.excerpt} ${payload.rawContent}`.toLowerCase();
-  const hasRiskKeyword = riskKeywords.some((keyword) => corpus.includes(keyword.toLowerCase()));
-
-  if (hasRiskKeyword || source.trustScore < autoPublishMinTrust) {
-    return RiskLevel.HIGH;
-  }
-
-  return RiskLevel.LOW;
 }
 
 function resolvePayloadTags(source: Source, payload: SourcePayload) {
@@ -547,6 +511,101 @@ async function notifyDispatchSummary(sentCount: number) {
   await sendFeishuTextMessage(chatId, `邮件分发轮次完成，本次已处理 ${sentCount} 条待发送记录。`);
 }
 
+function serializeJson(value: unknown) {
+  if (value == null) {
+    return null;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return null;
+  }
+}
+
+async function getActiveWorkflowMirror() {
+  return prisma.workflowConfig.findFirst({
+    where: {
+      active: true
+    },
+    orderBy: {
+      updatedAt: "desc"
+    }
+  });
+}
+
+async function getModelRouteMap() {
+  const routes = await prisma.modelRouteConfig.findMany({
+    where: {
+      enabled: true
+    }
+  });
+
+  return new Map<string, ModelRouteConfig>(routes.map((route) => [route.routeKey, route]));
+}
+
+async function syncDraftRecord(candidateId: string) {
+  const candidate = await prisma.candidateItem.findUnique({
+    where: {
+      id: candidateId
+    },
+    include: {
+      source: true,
+      autoPost: true
+    }
+  });
+
+  if (!candidate) {
+    return null;
+  }
+
+  try {
+    const appBaseUrl = getAppBaseUrl();
+    const draftRecord = await createOrUpdateFeishuDraftRecord(candidate.feishuDraftRecordId, {
+      candidateId: candidate.id,
+      status: candidate.draftStatus,
+      title: candidate.title,
+      slug: candidate.autoPost?.slug ?? null,
+      sourceName: candidate.source.name,
+      sourceUrl: candidate.normalizedUrl,
+      tags: candidate.tags,
+      riskLevel: candidate.riskLevel,
+      qualityScore: candidate.qualityScore,
+      workflowVersion: candidate.workflowVersion ?? null,
+      summary: candidate.aiSummary,
+      worthReading: candidate.worthReading,
+      structuredJson: serializeJson(candidate.structuredJson),
+      markdownDraft: candidate.draftMarkdown ?? candidate.rawContent,
+      coverImageUrl: candidate.coverImageUrl ?? null,
+      editorNotes: candidate.editorNotes ?? null,
+      previewUrl: `${appBaseUrl}/preview/candidate/${candidate.id}`,
+      publicUrl:
+        candidate.autoPost?.slug != null
+          ? `${appBaseUrl}/posts/${candidate.autoPost.slug}`
+          : null,
+      publishedAt: candidate.publishedAt?.toISOString() ?? null
+    });
+
+    await prisma.candidateItem.update({
+      where: {
+        id: candidate.id
+      },
+      data: {
+        feishuDraftRecordId: draftRecord.record_id
+      }
+    });
+
+    return draftRecord.record_id;
+  } catch (error) {
+    console.warn(
+      `Skipping Feishu draft sync for candidate ${candidate.id}: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`
+    );
+    return null;
+  }
+}
+
 async function claimSource(sourceId: string) {
   const now = new Date();
   const expiredLock = new Date(now.getTime() - LOCK_TIMEOUT_MS);
@@ -585,7 +644,11 @@ async function releaseSource(
   });
 }
 
-async function ingestSource(source: Source, workflow: WorkflowConfig | null) {
+async function ingestSource(
+  source: Source,
+  workflow: WorkflowConfig | null,
+  routesByKey: Map<string, ModelRouteConfig>
+) {
   const startedAt = new Date();
   const run = await prisma.ingestionRun.create({
     data: {
@@ -643,10 +706,14 @@ async function ingestSource(source: Source, workflow: WorkflowConfig | null) {
         continue;
       }
 
-      const riskLevel = detectRiskLevel(source, workflow, payload);
-      const ai = buildSummary(payload.title, payload.rawContent || payload.excerpt);
-      const status =
-        riskLevel === RiskLevel.LOW ? CandidateStatus.PUBLISHED : CandidateStatus.REVIEW;
+      const generated = await runSingleContentWorkflow({
+        source,
+        payload,
+        workflow,
+        routesByKey
+      });
+      const status = generated.shouldAutoPublish ? CandidateStatus.PUBLISHED : CandidateStatus.REVIEW;
+      const draftStatus = generated.shouldAutoPublish ? DraftStatus.AUTO_PUBLISHED : DraftStatus.PENDING_REVIEW;
 
       const candidate = await prisma.candidateItem.create({
         data: {
@@ -659,10 +726,16 @@ async function ingestSource(source: Source, workflow: WorkflowConfig | null) {
           tags: resolvePayloadTags(source, payload),
           coverImageUrl: payload.coverImageUrl,
           coverImageAlt: payload.coverImageAlt ?? payload.title,
-          aiSummary: ai.summary,
-          worthReading: ai.worthReading,
-          aiConfidence: riskLevel === RiskLevel.LOW ? 0.88 : 0.54,
-          riskLevel,
+          aiSummary: generated.summary,
+          worthReading: generated.worthReading,
+          aiConfidence: generated.qualityScore,
+          workflowVersion: generated.workflowVersion,
+          qualityScore: generated.qualityScore,
+          classificationJson: generated.classificationJson,
+          structuredJson: generated.structuredJson,
+          draftMarkdown: generated.draftMarkdown,
+          draftStatus,
+          riskLevel: generated.riskLevel,
           status,
           publishedAt: status === CandidateStatus.PUBLISHED ? new Date() : null
         },
@@ -675,8 +748,10 @@ async function ingestSource(source: Source, workflow: WorkflowConfig | null) {
 
       if (status === CandidateStatus.PUBLISHED) {
         await publishCandidate(candidate.id);
+        await syncDraftRecord(candidate.id);
         publishedCount += 1;
       } else {
+        await syncDraftRecord(candidate.id);
         await requestFeishuReview(candidate);
         reviewCount += 1;
       }
@@ -815,17 +890,221 @@ export async function syncFeishuSources() {
   };
 }
 
+export async function syncFeishuControlPlane() {
+  const now = new Date();
+  const [modelRoutes, workflows] = await Promise.all([
+    listFeishuModelRouteRecords(),
+    listFeishuWorkflowRecords()
+  ]);
+
+  const routeKeys = new Set<string>();
+  for (const route of modelRoutes) {
+    routeKeys.add(route.routeKey);
+
+    await prisma.modelRouteConfig.upsert({
+      where: {
+        routeKey: route.routeKey
+      },
+      update: {
+        feishuRecordId: route.recordId,
+        enabled: route.enabled,
+        provider: route.provider,
+        baseUrl: route.baseUrl,
+        model: route.model,
+        apiKeyEnvName: route.apiKeyEnvName,
+        temperature: route.temperature,
+        maxTokens: route.maxTokens,
+        timeoutMs: route.timeoutMs,
+        notes: route.notes,
+        lastSyncedAt: now
+      },
+      create: {
+        feishuRecordId: route.recordId,
+        routeKey: route.routeKey,
+        enabled: route.enabled,
+        provider: route.provider,
+        baseUrl: route.baseUrl,
+        model: route.model,
+        apiKeyEnvName: route.apiKeyEnvName,
+        temperature: route.temperature,
+        maxTokens: route.maxTokens,
+        timeoutMs: route.timeoutMs,
+        notes: route.notes,
+        lastSyncedAt: now
+      }
+    });
+  }
+
+  if (routeKeys.size > 0) {
+    await prisma.modelRouteConfig.updateMany({
+      where: {
+        routeKey: {
+          notIn: Array.from(routeKeys)
+        }
+      },
+      data: {
+        enabled: false,
+        lastSyncedAt: now
+      }
+    });
+  }
+
+  const workflowRecordIds = new Set<string>();
+  for (const workflow of workflows) {
+    workflowRecordIds.add(workflow.recordId);
+
+    await prisma.workflowConfig.upsert({
+      where: {
+        feishuRecordId: workflow.recordId
+      },
+      update: {
+        name: workflow.name,
+        version: workflow.version,
+        summaryPrompt: workflow.classificationPrompt,
+        highlightPrompt: workflow.structuringPrompt,
+        classificationPrompt: workflow.classificationPrompt,
+        structuringPrompt: workflow.structuringPrompt,
+        detailMarkdownPrompt: workflow.detailMarkdownPrompt,
+        riskKeywords: workflow.riskKeywords,
+        autoPublishMinTrust: workflow.autoPublishMinTrust,
+        autoPublishMinQuality: workflow.autoPublishMinQuality,
+        digestRuleThree: workflow.digestThreePrompt,
+        digestRuleEight: workflow.digestEightPrompt,
+        digestThreePrompt: workflow.digestThreePrompt,
+        digestEightPrompt: workflow.digestEightPrompt,
+        classificationRouteKey: workflow.classificationRouteKey,
+        structuringRouteKey: workflow.structuringRouteKey,
+        detailMarkdownRouteKey: workflow.detailMarkdownRouteKey,
+        digestThreeRouteKey: workflow.digestThreeRouteKey,
+        digestEightRouteKey: workflow.digestEightRouteKey,
+        notes: workflow.notes,
+        active: workflow.enabled,
+        lastSyncedAt: now
+      },
+      create: {
+        feishuRecordId: workflow.recordId,
+        name: workflow.name,
+        version: workflow.version,
+        summaryPrompt: workflow.classificationPrompt,
+        highlightPrompt: workflow.structuringPrompt,
+        classificationPrompt: workflow.classificationPrompt,
+        structuringPrompt: workflow.structuringPrompt,
+        detailMarkdownPrompt: workflow.detailMarkdownPrompt,
+        riskKeywords: workflow.riskKeywords,
+        autoPublishMinTrust: workflow.autoPublishMinTrust,
+        autoPublishMinQuality: workflow.autoPublishMinQuality,
+        digestRuleThree: workflow.digestThreePrompt,
+        digestRuleEight: workflow.digestEightPrompt,
+        digestThreePrompt: workflow.digestThreePrompt,
+        digestEightPrompt: workflow.digestEightPrompt,
+        classificationRouteKey: workflow.classificationRouteKey,
+        structuringRouteKey: workflow.structuringRouteKey,
+        detailMarkdownRouteKey: workflow.detailMarkdownRouteKey,
+        digestThreeRouteKey: workflow.digestThreeRouteKey,
+        digestEightRouteKey: workflow.digestEightRouteKey,
+        notes: workflow.notes,
+        active: workflow.enabled,
+        lastSyncedAt: now
+      }
+    });
+  }
+
+  if (workflowRecordIds.size > 0) {
+    await prisma.workflowConfig.updateMany({
+      where: {
+        feishuRecordId: {
+          notIn: Array.from(workflowRecordIds)
+        }
+      },
+      data: {
+        active: false,
+        lastSyncedAt: now
+      }
+    });
+  }
+
+  return {
+    modelRouteCount: modelRoutes.length,
+    workflowCount: workflows.length
+  };
+}
+
+export async function syncFeishuDraftDecisions() {
+  const draftRecords = await listFeishuDraftRecords();
+  let syncedCount = 0;
+  let approvedCount = 0;
+  let rejectedCount = 0;
+
+  for (const draft of draftRecords) {
+    const candidate = await prisma.candidateItem.findUnique({
+      where: {
+        id: draft.candidateId
+      },
+      include: {
+        autoPost: true
+      }
+    });
+
+    if (!candidate) {
+      continue;
+    }
+
+    const needsCandidateUpdate =
+      candidate.draftMarkdown !== draft.markdownDraft ||
+      candidate.editorNotes !== draft.editorNotes ||
+      candidate.aiSummary !== draft.summary ||
+      candidate.worthReading !== draft.worthReading ||
+      candidate.qualityScore !== draft.qualityScore ||
+      candidate.draftStatus !== draft.status;
+
+    if (needsCandidateUpdate) {
+      await prisma.candidateItem.update({
+        where: {
+          id: candidate.id
+        },
+        data: {
+          aiSummary: draft.summary || candidate.aiSummary,
+          worthReading: draft.worthReading || candidate.worthReading,
+          draftMarkdown: draft.markdownDraft || candidate.draftMarkdown,
+          editorNotes: draft.editorNotes,
+          qualityScore: draft.qualityScore,
+          draftStatus: draft.status
+        }
+      });
+      syncedCount += 1;
+    }
+
+    if (draft.status === DraftStatus.APPROVED && candidate.status !== CandidateStatus.PUBLISHED) {
+      await publishCandidate(candidate.id, "feishu-draft-sync");
+      await syncDraftRecord(candidate.id);
+      approvedCount += 1;
+      continue;
+    }
+
+    if (draft.status === DraftStatus.REJECTED && candidate.status !== CandidateStatus.REJECTED) {
+      await rejectCandidate(candidate.id, "feishu-draft-sync");
+      await syncDraftRecord(candidate.id);
+      rejectedCount += 1;
+      continue;
+    }
+
+    if (candidate.status === CandidateStatus.PUBLISHED && draft.markdownDraft) {
+      await publishCandidate(candidate.id, "feishu-draft-sync");
+      await syncDraftRecord(candidate.id);
+    }
+  }
+
+  return {
+    syncedCount,
+    approvedCount,
+    rejectedCount
+  };
+}
+
 export async function runIngestCycle() {
   const now = new Date();
   const expiredLock = new Date(now.getTime() - LOCK_TIMEOUT_MS);
-  const workflow = await prisma.workflowConfig.findFirst({
-    where: {
-      active: true
-    },
-    orderBy: {
-      updatedAt: "desc"
-    }
-  });
+  const [workflow, routesByKey] = await Promise.all([getActiveWorkflowMirror(), getModelRouteMap()]);
 
   const dueSources = await prisma.source.findMany({
     where: {
@@ -860,7 +1139,7 @@ export async function runIngestCycle() {
     result.processedSources += 1;
 
     try {
-      const sourceResult = await ingestSource(source, workflow);
+      const sourceResult = await ingestSource(source, workflow, routesByKey);
       result.publishedCount += sourceResult.publishedCount;
       result.reviewCount += sourceResult.reviewCount;
       result.duplicateCount += sourceResult.duplicateCount;
@@ -875,7 +1154,8 @@ export async function runIngestCycle() {
 }
 
 export async function generateDigestTask() {
-  const digest = await generateDigestForDate(new Date());
+  const [workflow, routesByKey] = await Promise.all([getActiveWorkflowMirror(), getModelRouteMap()]);
+  const digest = await generateDigestForDate(new Date(), { workflow, routesByKey });
 
   if (!digest) {
     return {
@@ -905,8 +1185,12 @@ export async function runWorkerTask(task: WorkerTaskName) {
   switch (task) {
     case "sync-feishu-sources":
       return syncFeishuSources();
+    case "sync-feishu-control-plane":
+      return syncFeishuControlPlane();
     case "run-ingest-cycle":
       return runIngestCycle();
+    case "sync-feishu-draft-decisions":
+      return syncFeishuDraftDecisions();
     case "generate-digest":
       return generateDigestTask();
     case "dispatch-email":
@@ -918,7 +1202,9 @@ export async function runWorkerTask(task: WorkerTaskName) {
 
 export const workerTasks: WorkerTaskName[] = [
   "sync-feishu-sources",
+  "sync-feishu-control-plane",
   "run-ingest-cycle",
+  "sync-feishu-draft-decisions",
   "generate-digest",
   "dispatch-email"
 ];

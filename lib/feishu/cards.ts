@@ -17,6 +17,7 @@ export function buildReviewCard(candidate: CandidateItem, source: Source) {
     `**风险等级** ${candidate.riskLevel}`,
     `**摘要** ${candidate.aiSummary}`,
     `**为什么值得看** ${candidate.worthReading}`,
+    "这条内容已经写入飞书 Drafts 表，可以在表格里继续改稿、发布或驳回。",
     `[原文链接](${candidate.normalizedUrl}) | [站内预览](${previewUrl})`
   ].join("\n");
 
@@ -48,23 +49,17 @@ export function buildReviewCard(candidate: CandidateItem, source: Source) {
             type: "primary",
             text: {
               tag: "plain_text",
-              content: "发布"
+              content: "站内预览"
             },
-            value: {
-              action: "publish",
-              candidateId: candidate.id
-            }
+            url: previewUrl
           },
           {
             tag: "button",
             text: {
               tag: "plain_text",
-              content: "驳回"
+              content: "查看原文"
             },
-            value: {
-              action: "reject",
-              candidateId: candidate.id
-            }
+            url: candidate.normalizedUrl
           }
         ]
       }

@@ -11,12 +11,13 @@ type DigestCardProps = {
 export function DigestCard({ digest, view = "3" }: DigestCardProps) {
   const duration = view === "8" ? "EIGHT" : "THREE";
   const items = digest.entries.filter((entry) => entry.duration === duration).slice(0, 3);
+  const summary = view === "8" ? digest.summaryEight || digest.summary : digest.summaryThree || digest.summary;
 
   return (
     <article className="digest-hero-card">
       <p className="section-kicker">Latest digest</p>
       <h1>{digest.title}</h1>
-      <p className="digest-hero-summary">{digest.summary}</p>
+      <p className="digest-hero-summary">{summary}</p>
 
       <div className="digest-entry-preview">
         {items.map((item) => (

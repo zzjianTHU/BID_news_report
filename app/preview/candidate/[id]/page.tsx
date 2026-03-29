@@ -5,6 +5,8 @@ import { SiteHeader } from "@/components/site-header";
 import { getCandidatePreview } from "@/lib/data";
 import { formatDateLabel, parseTags } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 type CandidatePreviewPageProps = {
   params: Promise<{ id: string }>;
 };

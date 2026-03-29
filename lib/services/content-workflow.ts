@@ -45,6 +45,10 @@ const digestOutputSchema = z.object({
   )
 });
 
+type ClassificationResult = z.output<typeof classificationSchema>;
+type StructuringResult = z.output<typeof structuringSchema>;
+type DigestOutput = z.output<typeof digestOutputSchema>;
+
 export type ContentWorkflowResult = {
   summary: string;
   worthReading: string;
@@ -53,8 +57,8 @@ export type ContentWorkflowResult = {
   riskLevel: RiskLevel;
   qualityScore: number;
   workflowVersion: string;
-  classificationJson: z.infer<typeof classificationSchema>;
-  structuredJson: z.infer<typeof structuringSchema>;
+  classificationJson: ClassificationResult;
+  structuredJson: StructuringResult;
   shouldAutoPublish: boolean;
 };
 
@@ -69,7 +73,7 @@ export type DigestWorkflowResult = {
   }>;
 };
 
-function parseJsonResponse<T>(raw: string, schema: z.ZodType<T>) {
+function parseJsonResponse<T>(raw: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>) {
   const trimmed = raw.trim();
   const normalized = trimmed.startsWith("```")
     ? trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")
@@ -122,7 +126,11 @@ function buildFallbackMarkdown(payload: SourcePayload, summary: string, worthRea
   ].join("\n");
 }
 
-function buildFallbackClassification(source: Source, payload: SourcePayload, workflow: WorkflowConfig | null) {
+function buildFallbackClassification(
+  source: Source,
+  payload: SourcePayload,
+  workflow: WorkflowConfig | null
+): ClassificationResult {
   const riskKeywords = getRiskKeywords(workflow);
   const corpus = `${payload.title} ${payload.excerpt} ${payload.rawContent}`.toLowerCase();
   const hasRiskKeyword = riskKeywords.some((keyword) => corpus.includes(keyword.toLowerCase()));
@@ -138,7 +146,7 @@ function buildFallbackClassification(source: Source, payload: SourcePayload, wor
   };
 }
 
-function buildFallbackStructuring(payload: SourcePayload) {
+function buildFallbackStructuring(payload: SourcePayload): StructuringResult {
   const fallback = buildFallbackSummary(payload.title, payload.rawContent || payload.excerpt);
   return {
     summary: fallback.summary,
@@ -171,7 +179,7 @@ async function runStructuredPrompt<T>({
   route: ModelRouteConfig;
   systemPrompt: string;
   userPayload: Record<string, unknown>;
-  schema: z.ZodType<T>;
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>;
 }) {
   const text = await invokeModelText({
     route,
@@ -220,9 +228,9 @@ export async function runClassification(
   payload: SourcePayload,
   workflow: WorkflowConfig,
   routesByKey: RoutesByKey
-) {
+): Promise<ClassificationResult> {
   const route = getRoute(routesByKey, workflow.classificationRouteKey, "classification");
-  return runStructuredPrompt({
+  return runStructuredPrompt<ClassificationResult>({
     route,
     systemPrompt: workflow.classificationPrompt,
     userPayload: {
@@ -242,10 +250,10 @@ export async function runStructuring(
   payload: SourcePayload,
   workflow: WorkflowConfig,
   routesByKey: RoutesByKey,
-  classification: z.infer<typeof classificationSchema>
-) {
+  classification: ClassificationResult
+): Promise<StructuringResult> {
   const route = getRoute(routesByKey, workflow.structuringRouteKey, "structuring");
-  return runStructuredPrompt({
+  return runStructuredPrompt<StructuringResult>({
     route,
     systemPrompt: workflow.structuringPrompt,
     userPayload: {
@@ -266,8 +274,8 @@ export async function runDetailMarkdown(
   payload: SourcePayload,
   workflow: WorkflowConfig,
   routesByKey: RoutesByKey,
-  classification: z.infer<typeof classificationSchema>,
-  structuring: z.infer<typeof structuringSchema>
+  classification: ClassificationResult,
+  structuring: StructuringResult
 ) {
   const route = getRoute(routesByKey, workflow.detailMarkdownRouteKey, "detail markdown");
   return runMarkdownPrompt({
@@ -316,8 +324,8 @@ export async function runSingleContentWorkflow({
     };
   }
 
-  let classification = fallbackClassification;
-  let structuring = fallbackStructuring;
+  let classification: ClassificationResult = fallbackClassification;
+  let structuring: StructuringResult = fallbackStructuring;
   let draftMarkdown = fallbackMarkdown;
   let pipelineHealthy = true;
 
@@ -417,7 +425,7 @@ export async function runDigestWorkflow({
 
   try {
     const route = getRoute(routesByKey, buildDigestRouteKey(workflow, duration), `${duration} digest`);
-    const output = await runStructuredPrompt({
+    const output = await runStructuredPrompt<DigestOutput>({
       route,
       systemPrompt: buildDigestPrompt(workflow, duration),
       userPayload: {

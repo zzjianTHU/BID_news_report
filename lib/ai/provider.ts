@@ -212,6 +212,6 @@ export async function invokeModelText(params: InvokeModelParams) {
     case "GEMINI":
       return invokeGemini(params);
     default:
-      throw new Error(`Unsupported model provider: ${params.route.provider satisfies never}`);
+      throw new Error(`Unsupported model provider: ${String(params.route.provider)}`);
   }
 }

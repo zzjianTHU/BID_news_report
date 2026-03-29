@@ -6,6 +6,8 @@ import { SubscribeCTA } from "@/components/subscribe-cta";
 import { getThoughtBySlug } from "@/lib/data";
 import { formatLongDate } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 type ThoughtDetailPageProps = {
   params: Promise<{ slug: string }>;
 };

@@ -4,6 +4,8 @@ import { SubscribeCTA } from "@/components/subscribe-cta";
 import { ThoughtCard } from "@/components/thought-card";
 import { getPublishedThoughts } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function ThoughtsPage() {
   const thoughts = await getPublishedThoughts();
 

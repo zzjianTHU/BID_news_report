@@ -3,6 +3,7 @@ import {
   CandidateStatus,
   DigestDuration,
   DispatchStatus,
+  Prisma,
   RiskLevel,
   ThoughtStatus
 } from "@prisma/client";
@@ -10,150 +11,214 @@ import {
 import { prisma } from "@/lib/prisma";
 import type { DashboardSnapshot, FeedWindow } from "@/lib/types";
 
-export async function getSiteSnapshot(): Promise<DashboardSnapshot> {
-  const [publishedCount, reviewCount, activeSourceCount, subscriberCount, lowRiskCount] =
-    await Promise.all([
-      prisma.autoPost.count({
-        where: {
-          status: AutoPostStatus.PUBLISHED
-        }
-      }),
-      prisma.candidateItem.count({
-        where: {
-          status: CandidateStatus.REVIEW
-        }
-      }),
-      prisma.source.count({
-        where: {
-          enabled: true
-        }
-      }),
-      prisma.subscriber.count({
-        where: {
-          active: true
-        }
-      }),
-      prisma.candidateItem.count({
-        where: {
-          riskLevel: RiskLevel.LOW,
-          status: CandidateStatus.PUBLISHED
-        }
-      })
-    ]);
+function shouldUseDataFallback(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientRustPanicError
+  );
+}
 
-  return {
-    publishedCount,
-    reviewCount,
-    activeSourceCount,
-    subscriberCount,
-    lowRiskAutoPublishRate: publishedCount === 0 ? 0 : Math.round((lowRiskCount / publishedCount) * 100)
-  };
+async function withDataFallback<T>(label: string, fallbackValue: T, query: () => Promise<T>): Promise<T> {
+  try {
+    return await query();
+  } catch (error) {
+    if (shouldUseDataFallback(error)) {
+      console.warn(`Falling back for ${label}: ${error.message}`);
+      return fallbackValue;
+    }
+
+    throw error;
+  }
+}
+
+export async function getSiteSnapshot(): Promise<DashboardSnapshot> {
+  return withDataFallback(
+    "getSiteSnapshot",
+    {
+      publishedCount: 0,
+      reviewCount: 0,
+      activeSourceCount: 0,
+      subscriberCount: 0,
+      lowRiskAutoPublishRate: 0
+    },
+    async () => {
+      const [publishedCount, reviewCount, activeSourceCount, subscriberCount, lowRiskCount] =
+        await Promise.all([
+          prisma.autoPost.count({
+            where: {
+              status: AutoPostStatus.PUBLISHED
+            }
+          }),
+          prisma.candidateItem.count({
+            where: {
+              status: CandidateStatus.REVIEW
+            }
+          }),
+          prisma.source.count({
+            where: {
+              enabled: true
+            }
+          }),
+          prisma.subscriber.count({
+            where: {
+              active: true
+            }
+          }),
+          prisma.candidateItem.count({
+            where: {
+              riskLevel: RiskLevel.LOW,
+              status: CandidateStatus.PUBLISHED
+            }
+          })
+        ]);
+
+      return {
+        publishedCount,
+        reviewCount,
+        activeSourceCount,
+        subscriberCount,
+        lowRiskAutoPublishRate: publishedCount === 0 ? 0 : Math.round((lowRiskCount / publishedCount) * 100)
+      };
+    }
+  );
 }
 
 export async function getFeedPosts(tag?: string, window: FeedWindow = "24h") {
   const since = new Date();
   since.setDate(since.getDate() - (window === "24h" ? 1 : 7));
 
-  return prisma.autoPost.findMany({
-    where: {
-      status: AutoPostStatus.PUBLISHED,
-      publishedAt: {
-        gte: since
-      },
-      ...(tag && tag !== "all"
-        ? {
-            tags: {
-              contains: tag
+  return withDataFallback("getFeedPosts", [], () =>
+    prisma.autoPost.findMany({
+      where: {
+        status: AutoPostStatus.PUBLISHED,
+        publishedAt: {
+          gte: since
+        },
+        ...(tag && tag !== "all"
+          ? {
+              tags: {
+                contains: tag
+              }
             }
-          }
-        : {})
-    },
-    include: {
-      candidateItem: true
-    },
-    orderBy: [
-      {
-        publishedAt: "desc"
+          : {})
+      },
+      include: {
+        candidateItem: true
       }
-    ]
-  });
+      ,
+      orderBy: [
+        {
+          publishedAt: "desc"
+        }
+      ]
+    })
+  );
 }
 
 export async function getLatestDigest() {
-  return prisma.digest.findFirst({
-    include: {
-      entries: {
-        orderBy: [
-          {
-            duration: "asc"
-          },
-          {
-            order: "asc"
-          }
-        ]
+  return withDataFallback("getLatestDigest", null, () =>
+    prisma.digest.findFirst({
+      include: {
+        entries: {
+          orderBy: [
+            {
+              duration: "asc"
+            },
+            {
+              order: "asc"
+            }
+          ]
+        }
+      },
+      orderBy: {
+        date: "desc"
       }
-    },
-    orderBy: {
-      date: "desc"
-    }
-  });
+    })
+  );
 }
 
 export async function getDigestByDate(date: string) {
-  return prisma.digest.findUnique({
-    where: {
-      date
-    },
-    include: {
-      entries: {
-        orderBy: {
-          order: "asc"
+  return withDataFallback("getDigestByDate", null, () =>
+    prisma.digest.findUnique({
+      where: {
+        date
+      },
+      include: {
+        entries: {
+          orderBy: {
+            order: "asc"
+          }
         }
       }
-    }
-  });
+    })
+  );
 }
 
 export async function getArchiveDigests() {
-  return prisma.digest.findMany({
-    include: {
-      entries: true
-    },
-    orderBy: {
-      date: "desc"
-    }
-  });
+  return withDataFallback("getArchiveDigests", [], () =>
+    prisma.digest.findMany({
+      include: {
+        entries: true
+      },
+      orderBy: {
+        date: "desc"
+      }
+    })
+  );
 }
 
 export async function getPublishedThoughts() {
-  return prisma.thoughtPost.findMany({
-    where: {
-      status: ThoughtStatus.PUBLISHED
-    },
-    orderBy: {
-      publishedAt: "desc"
-    }
-  });
+  return withDataFallback("getPublishedThoughts", [], () =>
+    prisma.thoughtPost.findMany({
+      where: {
+        status: ThoughtStatus.PUBLISHED
+      },
+      orderBy: {
+        publishedAt: "desc"
+      }
+    })
+  );
 }
 
 export async function getCandidatePreview(id: string) {
-  return prisma.candidateItem.findUnique({
-    where: {
-      id
-    },
-    include: {
-      source: true,
-      autoPost: true
-    }
-  });
+  return withDataFallback("getCandidatePreview", null, () =>
+    prisma.candidateItem.findUnique({
+      where: {
+        id
+      },
+      include: {
+        source: true,
+        autoPost: true
+      }
+    })
+  );
+}
+
+export async function getPostBySlug(slug: string) {
+  return withDataFallback("getPostBySlug", null, () =>
+    prisma.autoPost.findUnique({
+      where: {
+        slug
+      },
+      include: {
+        candidateItem: {
+          include: {
+            source: true
+          }
+        }
+      }
+    })
+  );
 }
 
 export async function getThoughtBySlug(slug: string) {
-  return prisma.thoughtPost.findUnique({
-    where: {
-      slug
-    }
-  });
+  return withDataFallback("getThoughtBySlug", null, () =>
+    prisma.thoughtPost.findUnique({
+      where: {
+        slug
+      }
+    })
+  );
 }
 
 export async function getSources() {

@@ -9,6 +9,8 @@ import { SubscribeCTA } from "@/components/subscribe-cta";
 import { ThoughtCard } from "@/components/thought-card";
 import { getFeedPosts, getLatestDigest, getPublishedThoughts } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 type HomePageProps = {
   searchParams: Promise<{
     tag?: string;

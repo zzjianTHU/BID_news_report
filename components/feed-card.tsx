@@ -12,6 +12,7 @@ export function FeedCard({ post, compact = false }: FeedCardProps) {
   const tags = parseTags(post.tags);
   const coverImageUrl = post.candidateItem.coverImageUrl;
   const coverImageAlt = post.candidateItem.coverImageAlt || post.title;
+  const postHref = post.slug ? `/posts/${post.slug}` : post.sourceUrl;
 
   return (
     <article className={`feed-card ${compact ? "feed-card-compact" : ""}`}>
@@ -23,7 +24,11 @@ export function FeedCard({ post, compact = false }: FeedCardProps) {
             </span>
           ))}
         </div>
-        <h3>{post.title}</h3>
+        <h3>
+          <Link className="feed-card-link" href={postHref}>
+            {post.title}
+          </Link>
+        </h3>
         <p className="feed-summary">{post.summary}</p>
         <p className="feed-insight">为什么值得看：{post.worthReading}</p>
         <div className="feed-meta">
@@ -40,8 +45,8 @@ export function FeedCard({ post, compact = false }: FeedCardProps) {
         >
           {!coverImageUrl ? <span>{tags[0] ?? "AI"}</span> : null}
         </div>
-        <Link className="text-link" href={post.sourceUrl} target="_blank">
-          Read source
+        <Link className="text-link" href={postHref}>
+          Read brief
         </Link>
       </div>
     </article>

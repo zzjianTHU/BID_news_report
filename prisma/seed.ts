@@ -1,9 +1,11 @@
 import {
   AutoPostStatus,
   CandidateStatus,
+  DraftStatus,
   DigestDuration,
   DispatchStatus,
   IngestionTrigger,
+  ModelProvider,
   PrismaClient,
   RiskLevel,
   RunStatus,
@@ -22,6 +24,7 @@ async function main() {
   await prisma.autoPost.deleteMany();
   await prisma.candidateItem.deleteMany();
   await prisma.ingestionRun.deleteMany();
+  await prisma.modelRouteConfig.deleteMany();
   await prisma.workflowConfig.deleteMany();
   await prisma.source.deleteMany();
   await prisma.thoughtPost.deleteMany();
@@ -43,19 +46,51 @@ async function main() {
     ]
   });
 
+  const defaultRoute = await prisma.modelRouteConfig.create({
+    data: {
+      routeKey: "default-openai",
+      enabled: true,
+      provider: ModelProvider.OPENAI,
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      apiKeyEnvName: "OPENAI_API_KEY",
+      temperature: 0.2,
+      maxTokens: 2000,
+      timeoutMs: 30000,
+      notes: "默认内容工作流模型路由。"
+    }
+  });
+
   const workflow = await prisma.workflowConfig.create({
     data: {
       name: "AI 主情报流工作流",
+      version: "v1",
       summaryPrompt:
         "用中文生成适合管理者快速阅读的标题、摘要和一句为什么值得看，避免空泛套话。",
       highlightPrompt:
         "优先抽取 Agent、模型落地、组织采用、资本与产业变化，输出可直接发布的亮点。",
+      classificationPrompt:
+        "判断这条内容属于哪个栏目、风险等级和质量分，只输出严格 JSON。",
+      structuringPrompt:
+        "把输入整理成摘要、为什么值得看、TL;DR 和结构化要点，只输出严格 JSON。",
+      detailMarkdownPrompt:
+        "把已整理的信息写成面向读者的 Markdown 文章，结构清晰，带 TL;DR 和来源。",
       riskKeywords: "rumor,unverified,匿名,截图,未经证实,小道消息,转载无来源",
       autoPublishMinTrust: 72,
+      autoPublishMinQuality: 0.78,
       digestRuleThree:
         "3 分钟版只保留最值得看的 3 条，强调判断与行动价值，每条摘要不超过 70 字。",
       digestRuleEight:
         "8 分钟版保留 5 条左右，补充背景、变化原因和机构视角，每条摘要 100-140 字。",
+      digestThreePrompt:
+        "从当天已发布文章里挑出 3 条最值得读的内容，生成 3 分钟版 digest，输出严格 JSON。",
+      digestEightPrompt:
+        "从当天已发布文章里整理 5 条更完整的内容，生成 8 分钟版 digest，输出严格 JSON。",
+      classificationRouteKey: defaultRoute.routeKey,
+      structuringRouteKey: defaultRoute.routeKey,
+      detailMarkdownRouteKey: defaultRoute.routeKey,
+      digestThreeRouteKey: defaultRoute.routeKey,
+      digestEightRouteKey: defaultRoute.routeKey,
       notes:
         "移动端首页优先展示最新 digest Hero，其次是自动情报流，再放 Recent posts 和订阅入口。"
     }
@@ -157,6 +192,27 @@ async function main() {
       worthReading:
         "这说明 AI 竞争的关键正在从模型本身转向组织流程重构。",
       aiConfidence: 0.93,
+      workflowVersion: workflow.version,
+      qualityScore: 0.93,
+      classificationJson: {
+        category: "agents",
+        riskLevel: "LOW",
+        qualityScore: 0.93,
+        shouldPublish: true,
+        keyFacts: ["Agent 试点进入真实业务流程"],
+        reasoningSummary: "来源可信度高，且内容具备明显行动价值。"
+      },
+      structuredJson: {
+        summary:
+          "越来越多企业不再满足于演示效果，而是把 Agent 放进真实流程中，推动权限、审计和知识边界能力成为采购重点。",
+        worthReading: "这说明 AI 竞争的关键正在从模型本身转向组织流程重构。",
+        tldr: ["Agent 正进入真实流程。", "治理能力成为上线门槛。"],
+        outline: ["企业试点转向真实业务流程", "权限、审计、监控成为新门槛"],
+        sourceNotes: ["OpenAI News"]
+      },
+      draftMarkdown:
+        "# 企业把 Agent 试点从演示推进到真实业务流程\n\n## TL;DR\n\n- Agent 试点正从演示走向真实业务流程。\n- 权限、审计和治理能力成为上线门槛。\n\n## 发生了什么\n\n多家团队开始把 Agent 接入客服、投研与内部知识支持流程，治理和监控成为上线前提。\n",
+      draftStatus: DraftStatus.AUTO_PUBLISHED,
       riskLevel: RiskLevel.LOW,
       status: CandidateStatus.PUBLISHED,
       publishedAt: new Date("2026-03-15T06:20:00.000Z")
@@ -174,6 +230,27 @@ async function main() {
       worthReading:
         "这意味着评估 AI 产品时，流程编排能力已经和模型能力同等重要。",
       aiConfidence: 0.89,
+      workflowVersion: workflow.version,
+      qualityScore: 0.89,
+      classificationJson: {
+        category: "models",
+        riskLevel: "LOW",
+        qualityScore: 0.89,
+        shouldPublish: true,
+        keyFacts: ["多模型路由开始替代单模型押注"],
+        reasoningSummary: "工程实践信号明确，适合公开发布。"
+      },
+      structuredJson: {
+        summary:
+          "面向生产场景的 AI 产品，正在把多模型协同变成默认架构，以兼顾速度、成本和准确率。",
+        worthReading: "这意味着评估 AI 产品时，流程编排能力已经和模型能力同等重要。",
+        tldr: ["多模型路由成为默认架构。", "编排能力重要性提升。"],
+        outline: ["任务分层", "模型路由", "成本效果平衡"],
+        sourceNotes: ["Anthropic Updates"]
+      },
+      draftMarkdown:
+        "# AI 原生产品开始用多模型路由替代单模型押注\n\n## TL;DR\n\n- 多模型协同正在成为产品默认架构。\n- 成本、速度和准确率开始被统一编排。\n",
+      draftStatus: DraftStatus.AUTO_PUBLISHED,
       riskLevel: RiskLevel.LOW,
       status: CandidateStatus.PUBLISHED,
       publishedAt: new Date("2026-03-15T07:10:00.000Z")
@@ -191,6 +268,27 @@ async function main() {
       worthReading:
         "谁能把 AI 服务做成可被运营和审计的系统，谁更容易进入企业核心场景。",
       aiConfidence: 0.84,
+      workflowVersion: workflow.version,
+      qualityScore: 0.84,
+      classificationJson: {
+        category: "infra",
+        riskLevel: "LOW",
+        qualityScore: 0.84,
+        shouldPublish: true,
+        keyFacts: ["AI Infra 关注点转向可观测性与成本治理"],
+        reasoningSummary: "行业趋势稳定，适合公开发布。"
+      },
+      structuredJson: {
+        summary:
+          "AI infra 正从性能竞赛转向可靠性与成本可控，企业采购标准更接近成熟软件基础设施。",
+        worthReading: "谁能把 AI 服务做成可被运营和审计的系统，谁更容易进入企业核心场景。",
+        tldr: ["AI infra 更像企业软件。", "可观测与成本治理成为刚需。"],
+        outline: ["性能竞争退潮", "监控审计兴起", "企业采购标准变化"],
+        sourceNotes: ["AI Infra Watch"]
+      },
+      draftMarkdown:
+        "# AI 基础设施团队开始主打可观测性与成本治理\n\n## TL;DR\n\n- 企业部署之后，监控和成本治理成为刚需。\n- AI infra 的价值正转向可靠性与可运营性。\n",
+      draftStatus: DraftStatus.AUTO_PUBLISHED,
       riskLevel: RiskLevel.LOW,
       status: CandidateStatus.PUBLISHED,
       publishedAt: new Date("2026-03-15T08:00:00.000Z")
@@ -208,6 +306,26 @@ async function main() {
       worthReading:
         "它能提醒我们关注市场情绪，但不适合作为对外判断依据。",
       aiConfidence: 0.48,
+      workflowVersion: workflow.version,
+      qualityScore: 0.48,
+      classificationJson: {
+        category: "signals",
+        riskLevel: "HIGH",
+        qualityScore: 0.48,
+        shouldPublish: false,
+        keyFacts: ["来源和论据不足"],
+        reasoningSummary: "内容激进且证据链不足，需要人工审核。"
+      },
+      structuredJson: {
+        summary: "该观点激进且传播性强，但来源和证据链不足，暂不适合自动对外发布。",
+        worthReading: "它能提醒我们关注市场情绪，但不适合作为对外判断依据。",
+        tldr: ["观点激进，但论据不足。"],
+        outline: ["市场情绪", "证据链不足", "需要人工把关"],
+        sourceNotes: ["Founder Notes"]
+      },
+      draftMarkdown:
+        "# 某海外创始人称通用 Agent 将在半年内替代大部分研究员\n\n## TL;DR\n\n- 观点传播性强，但缺少可靠证据。\n- 更适合人工审核后再决定是否发布。\n",
+      draftStatus: DraftStatus.PENDING_REVIEW,
       riskLevel: RiskLevel.HIGH,
       status: CandidateStatus.REVIEW,
       publishedAt: null
@@ -243,11 +361,26 @@ async function main() {
     await prisma.autoPost.create({
       data: {
         candidateItemId: candidate.id,
+        slug:
+          candidate.title === "企业把 Agent 试点从演示推进到真实业务流程"
+            ? "agent-rollout-enters-real-workflows"
+            : candidate.title === "AI 原生产品开始用多模型路由替代单模型押注"
+              ? "multi-model-routing-becomes-default"
+              : "ai-infra-cost-governance",
         title: candidate.title,
         summary: candidate.aiSummary,
         worthReading: candidate.worthReading,
         body:
           "自动生成稿件已完成结构化整理，编辑可在飞书里补充机构观点、校对标题或决定是否保留。",
+        bodyMarkdown: candidate.draftMarkdown,
+        tldr:
+          candidate.title === "企业把 Agent 试点从演示推进到真实业务流程"
+            ? ["Agent 正进入真实流程。", "治理能力成为上线门槛。"]
+            : candidate.title === "AI 原生产品开始用多模型路由替代单模型押注"
+              ? ["多模型路由成为默认架构。", "编排能力重要性提升。"]
+              : ["AI infra 更像企业软件。", "可观测与成本治理成为刚需。"],
+        workflowVersion: workflow.version,
+        qualityScore: candidate.aiConfidence,
         tags: candidate.tags,
         sourceLabel: sources.find((source) => source.id === candidate.sourceId)?.name ?? "AI Source",
         sourceUrl: candidate.normalizedUrl,
@@ -261,7 +394,9 @@ async function main() {
     data: {
       date: "2026-03-15",
       title: "AI 情报日报",
-      summary: "今天的自动流重点集中在 Agent 落地、模型路由和 AI 基础设施治理。"
+      summary: "今天的自动流重点集中在 Agent 落地、模型路由和 AI 基础设施治理。",
+      summaryThree: "3 分钟版聚焦最值得优先跟进的三条变化。",
+      summaryEight: "8 分钟版补充了更完整的背景和判断脉络。"
     }
   });
 
@@ -274,7 +409,8 @@ async function main() {
       worthReading: "这标志着 AI 竞争正在转向流程改造而不是单点炫技。",
       sourceLabel: "OpenAI News",
       sourceUrl: "https://example.com/openai-agent-rollout",
-      tag: "Agent"
+      tag: "Agent",
+      postSlug: "agent-rollout-enters-real-workflows"
     },
     {
       duration: DigestDuration.THREE,
@@ -284,7 +420,8 @@ async function main() {
       worthReading: "未来评估 AI 产品，编排与运营能力会越来越关键。",
       sourceLabel: "Anthropic Updates",
       sourceUrl: "https://example.com/multi-model-routing",
-      tag: "Model Ops"
+      tag: "Model Ops",
+      postSlug: "multi-model-routing-becomes-default"
     },
     {
       duration: DigestDuration.THREE,
@@ -294,7 +431,8 @@ async function main() {
       worthReading: "这类基础能力会决定 AI 是否能走进核心生产系统。",
       sourceLabel: "AI Infra Watch",
       sourceUrl: "https://example.com/infra-cost-governance",
-      tag: "Infra"
+      tag: "Infra",
+      postSlug: "ai-infra-cost-governance"
     },
     {
       duration: DigestDuration.EIGHT,
@@ -304,7 +442,8 @@ async function main() {
       worthReading: "真正能落地的团队，不是回答问题最惊艳的，而是最懂组织流程的。",
       sourceLabel: "OpenAI News",
       sourceUrl: "https://example.com/openai-agent-rollout",
-      tag: "Agent"
+      tag: "Agent",
+      postSlug: "agent-rollout-enters-real-workflows"
     },
     {
       duration: DigestDuration.EIGHT,
@@ -314,7 +453,8 @@ async function main() {
       worthReading: "企业之后买的不是某个模型，而是一套稳定可运营的 AI 服务栈。",
       sourceLabel: "Anthropic Updates",
       sourceUrl: "https://example.com/multi-model-routing",
-      tag: "Model Ops"
+      tag: "Model Ops",
+      postSlug: "multi-model-routing-becomes-default"
     },
     {
       duration: DigestDuration.EIGHT,
@@ -324,7 +464,8 @@ async function main() {
       worthReading: "AI infra 的下一轮竞争，会更像传统企业软件而不是单点算力竞赛。",
       sourceLabel: "AI Infra Watch",
       sourceUrl: "https://example.com/infra-cost-governance",
-      tag: "Infra"
+      tag: "Infra",
+      postSlug: "ai-infra-cost-governance"
     },
     {
       duration: DigestDuration.EIGHT,

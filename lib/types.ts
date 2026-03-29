@@ -17,6 +17,12 @@ export type FeedPost = AutoPost & {
   candidateItem: CandidateItem;
 };
 
+export type PublicPost = AutoPost & {
+  candidateItem: CandidateItem & {
+    source: Source;
+  };
+};
+
 export type DigestWithEntries = Digest & {
   entries: DigestEntry[];
 };

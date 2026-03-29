@@ -6,6 +6,8 @@ import { StickySwitcher } from "@/components/sticky-switcher";
 import { SubscribeCTA } from "@/components/subscribe-cta";
 import { getDigestByDate } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 type DigestPageProps = {
   params: Promise<{ date: string }>;
   searchParams: Promise<{ view?: "3" | "8" }>;
@@ -23,6 +25,7 @@ export default async function DigestPage({ params, searchParams }: DigestPagePro
 
   const duration = view === "8" ? "EIGHT" : "THREE";
   const entries = digest.entries.filter((entry) => entry.duration === duration);
+  const digestSummary = view === "8" ? digest.summaryEight || digest.summary : digest.summaryThree || digest.summary;
 
   return (
     <main className="page-shell">
@@ -42,7 +45,7 @@ export default async function DigestPage({ params, searchParams }: DigestPagePro
           <h1 className="page-title">
             {digest.title} · {view === "8" ? "8 分钟版" : "3 分钟版"}
           </h1>
-          <p className="page-intro">{digest.summary}</p>
+          <p className="page-intro">{digestSummary}</p>
         </section>
 
         <div className="digest-list">
@@ -52,13 +55,26 @@ export default async function DigestPage({ params, searchParams }: DigestPagePro
                 <span className="digest-order">{String(entry.order).padStart(2, "0")}</span>
                 <div>
                   <p className="section-kicker">{entry.tag}</p>
-                  <h2>{entry.title}</h2>
+                  <h2>
+                    {entry.postSlug ? (
+                      <Link className="feed-card-link" href={`/posts/${entry.postSlug}`}>
+                        {entry.title}
+                      </Link>
+                    ) : (
+                      entry.title
+                    )}
+                  </h2>
                 </div>
               </div>
               <p>{entry.summary}</p>
               <p className="feed-insight">为什么值得看：{entry.worthReading}</p>
               <div className="feed-meta">
                 <span>{entry.sourceLabel}</span>
+                {entry.postSlug ? (
+                  <Link className="text-link" href={`/posts/${entry.postSlug}`}>
+                    阅读全文
+                  </Link>
+                ) : null}
                 <Link className="text-link" href={entry.sourceUrl} target="_blank">
                   原文链接
                 </Link>

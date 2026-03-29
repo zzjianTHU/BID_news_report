@@ -64,16 +64,33 @@ export async function publishCandidate(candidateId: string, reviewer: string | n
 
   const updatedCandidate =
     candidate.status === CandidateStatus.PUBLISHED
-      ? candidate
+      ? await prisma.candidateItem.update({
+          where: {
+            id: candidateId
+          },
+          data: {
+            draftStatus: reviewer ? "APPROVED" : "AUTO_PUBLISHED",
+            ...(reviewer
+              ? {
+                  reviewDecisionBy: reviewer,
+                  reviewDecisionAt: new Date()
+                }
+              : {})
+          },
+          include: {
+            source: true,
+            autoPost: true
+          }
+        })
       : await prisma.candidateItem.update({
           where: {
             id: candidateId
           },
-        data: {
-          status: CandidateStatus.PUBLISHED,
-          publishedAt,
-          draftStatus: reviewer ? "APPROVED" : "AUTO_PUBLISHED",
-          ...(reviewer
+          data: {
+            status: CandidateStatus.PUBLISHED,
+            publishedAt,
+            draftStatus: reviewer ? "APPROVED" : "AUTO_PUBLISHED",
+            ...(reviewer
               ? {
                   reviewDecisionBy: reviewer,
                   reviewDecisionAt: new Date()

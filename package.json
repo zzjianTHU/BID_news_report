@@ -12,7 +12,9 @@
     "db:seed": "node --env-file=.env --import tsx prisma/seed.ts",
     "db:reset": "node -e \"if (process.env.ALLOW_DATABASE_RESET !== 'true') { console.error('Set ALLOW_DATABASE_RESET=true before running db:reset.'); process.exit(1); }\" && prisma db push --force-reset && npm run db:seed",
     "worker:sync-feishu-sources": "node --env-file=.env --import tsx scripts/worker.ts sync-feishu-sources",
+    "worker:sync-feishu-control-plane": "node --env-file=.env --import tsx scripts/worker.ts sync-feishu-control-plane",
     "worker:run-ingest-cycle": "node --env-file=.env --import tsx scripts/worker.ts run-ingest-cycle",
+    "worker:sync-feishu-draft-decisions": "node --env-file=.env --import tsx scripts/worker.ts sync-feishu-draft-decisions",
     "worker:generate-digest": "node --env-file=.env --import tsx scripts/worker.ts generate-digest",
     "worker:dispatch-email": "node --env-file=.env --import tsx scripts/worker.ts dispatch-email",
     "automation:run": "npm run worker:run-ingest-cycle"
@@ -28,6 +30,8 @@
     "openai": "^4.89.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "rss-parser": "^3.13.0",
     "zod": "^3.24.2"
   },

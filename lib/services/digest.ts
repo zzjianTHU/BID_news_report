@@ -1,7 +1,15 @@
-import { AutoPostStatus, DigestDuration, DispatchStatus } from "@prisma/client";
+import { AutoPostStatus, DigestDuration, DispatchStatus, type ModelRouteConfig, type WorkflowConfig } from "@prisma/client";
 import { format } from "date-fns";
 
 import { prisma } from "@/lib/prisma";
+import { runDigestWorkflow } from "@/lib/services/content-workflow";
+
+type DigestOptions = {
+  workflow?: WorkflowConfig | null;
+  routesByKey?: Map<string, ModelRouteConfig>;
+};
+
+const DIGEST_TARGET_POST_COUNT = 5;
 
 function getDayBounds(targetDate: Date) {
   const start = new Date(targetDate);
@@ -13,35 +21,19 @@ function getDayBounds(targetDate: Date) {
   return { start, end };
 }
 
-function buildDigestSummary(postCount: number) {
-  if (postCount === 0) {
-    return "今天的自动流还没有新的已发布内容。";
-  }
-
-  if (postCount === 1) {
-    return "今天先沉淀了一条值得追踪的更新，适合用 3 分钟快速掌握。";
-  }
-
-  return `今天共沉淀 ${postCount} 条已发布内容，重点集中在落地进展、产品路线和基础设施变化。`;
-}
-
 function buildWorthReading(postTitle: string, sourceLabel: string) {
   return `${sourceLabel} 这条更新能帮助团队更快判断“这件事是否值得继续跟踪”：${postTitle}`;
 }
 
-function buildEntrySummary(summary: string, duration: DigestDuration) {
-  if (duration === DigestDuration.EIGHT) {
-    return `${summary} 这条内容也被纳入更完整的上下文里，方便后续继续追踪。`;
-  }
-
-  return summary;
+function normalizeTag(tags: string) {
+  return tags.split(",").map((tag) => tag.trim()).find(Boolean) ?? "AI";
 }
 
-export async function generateDigestForDate(targetDate = new Date()) {
+export async function generateDigestForDate(targetDate = new Date(), options: DigestOptions = {}) {
   const digestDate = format(targetDate, "yyyy-MM-dd");
   const { start, end } = getDayBounds(targetDate);
 
-  const publishedPosts = await prisma.autoPost.findMany({
+  const sameDayPosts = await prisma.autoPost.findMany({
     where: {
       status: AutoPostStatus.PUBLISHED,
       publishedAt: {
@@ -59,22 +51,78 @@ export async function generateDigestForDate(targetDate = new Date()) {
     ]
   });
 
+  let publishedPosts = sameDayPosts;
+
+  if (publishedPosts.length < DIGEST_TARGET_POST_COUNT) {
+    const recentPosts = await prisma.autoPost.findMany({
+      where: {
+        status: AutoPostStatus.PUBLISHED,
+        publishedAt: {
+          lt: end
+        }
+      },
+      orderBy: [
+        {
+          publishedAt: "desc"
+        },
+        {
+          createdAt: "desc"
+        }
+      ],
+      take: DIGEST_TARGET_POST_COUNT
+    });
+
+    const mergedPosts = new Map<string, (typeof recentPosts)[number]>();
+    for (const post of [...publishedPosts, ...recentPosts]) {
+      mergedPosts.set(post.id, post);
+    }
+
+    publishedPosts = Array.from(mergedPosts.values()).sort((left, right) => {
+      const leftTime = (left.publishedAt ?? left.createdAt).getTime();
+      const rightTime = (right.publishedAt ?? right.createdAt).getTime();
+      return rightTime - leftTime;
+    });
+  }
+
   if (publishedPosts.length === 0) {
     return null;
   }
+
+  const workflow = options.workflow ?? null;
+  const routesByKey = options.routesByKey ?? new Map<string, ModelRouteConfig>();
+  const [threeMinuteDigest, eightMinuteDigest] = await Promise.all([
+    runDigestWorkflow({
+      duration: DigestDuration.THREE,
+      workflow,
+      routesByKey,
+      posts: publishedPosts,
+      digestDate
+    }),
+    runDigestWorkflow({
+      duration: DigestDuration.EIGHT,
+      workflow,
+      routesByKey,
+      posts: publishedPosts,
+      digestDate
+    })
+  ]);
 
   const digest = await prisma.digest.upsert({
     where: {
       date: digestDate
     },
     update: {
-      title: "AI 情报日报",
-      summary: buildDigestSummary(publishedPosts.length)
+      title: threeMinuteDigest.title,
+      summary: threeMinuteDigest.summary,
+      summaryThree: threeMinuteDigest.summary,
+      summaryEight: eightMinuteDigest.summary
     },
     create: {
       date: digestDate,
-      title: "AI 情报日报",
-      summary: buildDigestSummary(publishedPosts.length)
+      title: threeMinuteDigest.title,
+      summary: threeMinuteDigest.summary,
+      summaryThree: threeMinuteDigest.summary,
+      summaryEight: eightMinuteDigest.summary
     }
   });
 
@@ -84,32 +132,38 @@ export async function generateDigestForDate(targetDate = new Date()) {
     }
   });
 
-  const threeMinutePosts = publishedPosts.slice(0, 3);
-  const eightMinutePosts = publishedPosts.slice(0, 5);
-
+  const postBySlug = new Map(publishedPosts.map((post) => [post.slug, post] as const));
   const entries = [
-    ...threeMinutePosts.map((post, index) => ({
-      digestId: digest.id,
-      duration: DigestDuration.THREE,
-      order: index + 1,
-      title: post.title,
-      summary: buildEntrySummary(post.summary, DigestDuration.THREE),
-      worthReading: post.worthReading || buildWorthReading(post.title, post.sourceLabel),
-      sourceLabel: post.sourceLabel,
-      sourceUrl: post.sourceUrl,
-      tag: post.tags.split(",")[0] ?? "AI"
-    })),
-    ...eightMinutePosts.map((post, index) => ({
-      digestId: digest.id,
-      duration: DigestDuration.EIGHT,
-      order: index + 1,
-      title: post.title,
-      summary: buildEntrySummary(post.summary, DigestDuration.EIGHT),
-      worthReading: post.worthReading || buildWorthReading(post.title, post.sourceLabel),
-      sourceLabel: post.sourceLabel,
-      sourceUrl: post.sourceUrl,
-      tag: post.tags.split(",")[0] ?? "AI"
-    }))
+    ...threeMinuteDigest.entries.map((entry, index) => {
+      const sourcePost = postBySlug.get(entry.slug) ?? publishedPosts[index];
+      return {
+        digestId: digest.id,
+        duration: DigestDuration.THREE,
+        order: index + 1,
+        title: entry.title,
+        summary: entry.summary,
+        worthReading: entry.worthReading || buildWorthReading(entry.title, sourcePost?.sourceLabel ?? "AI"),
+        sourceLabel: sourcePost?.sourceLabel ?? "AI",
+        sourceUrl: sourcePost?.sourceUrl ?? "",
+        tag: normalizeTag(sourcePost?.tags ?? "AI"),
+        postSlug: sourcePost?.slug ?? null
+      };
+    }),
+    ...eightMinuteDigest.entries.map((entry, index) => {
+      const sourcePost = postBySlug.get(entry.slug) ?? publishedPosts[index];
+      return {
+        digestId: digest.id,
+        duration: DigestDuration.EIGHT,
+        order: index + 1,
+        title: entry.title,
+        summary: entry.summary,
+        worthReading: entry.worthReading || buildWorthReading(entry.title, sourcePost?.sourceLabel ?? "AI"),
+        sourceLabel: sourcePost?.sourceLabel ?? "AI",
+        sourceUrl: sourcePost?.sourceUrl ?? "",
+        tag: normalizeTag(sourcePost?.tags ?? "AI"),
+        postSlug: sourcePost?.slug ?? null
+      };
+    })
   ];
 
   await prisma.digestEntry.createMany({

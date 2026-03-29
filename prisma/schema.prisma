@@ -240,6 +240,8 @@ model Digest {
   date      String        @unique
   title     String
   summary   String
+  summaryThree String?
+  summaryEight String?
   entries   DigestEntry[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt

@@ -4,3 +4,9 @@ prisma/dev.db
 prisma/dev.db-journal
 .env
 .env.local
+.postgres-data/
+.postgres-pass
+.codex-dev.log
+.codex-dev.err.log
+tmp_*.txt
+*_修订.docx

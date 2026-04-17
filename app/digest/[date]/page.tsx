@@ -1,10 +1,11 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
 import { StickySwitcher } from "@/components/sticky-switcher";
 import { SubscribeCTA } from "@/components/subscribe-cta";
 import { getDigestByDate } from "@/lib/data";
+import { translateTag } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +35,14 @@ export default async function DigestPage({ params, searchParams }: DigestPagePro
         <StickySwitcher
           sticky
           items={[
-            { href: `/digest/${date}?view=3`, label: "3 min", active: view === "3" },
-            { href: `/digest/${date}?view=8`, label: "8 min", active: view === "8" },
-            { href: "/archive", label: "Archive" }
+            { href: `/digest/${date}?view=3`, label: "3 分钟", active: view === "3" },
+            { href: `/digest/${date}?view=8`, label: "8 分钟", active: view === "8" },
+            { href: "/archive", label: "归档" }
           ]}
         />
 
         <section className="section-block">
-          <p className="section-kicker">Digest</p>
+          <p className="section-kicker">日报</p>
           <h1 className="page-title">
             {digest.title} · {view === "8" ? "8 分钟版" : "3 分钟版"}
           </h1>
@@ -54,14 +55,14 @@ export default async function DigestPage({ params, searchParams }: DigestPagePro
               <div className="digest-entry-head">
                 <span className="digest-order">{String(entry.order).padStart(2, "0")}</span>
                 <div>
-                  <p className="section-kicker">{entry.tag}</p>
+                  <p className="section-kicker">{translateTag(entry.tag)}</p>
                   <h2>
                     {entry.postSlug ? (
                       <Link className="feed-card-link" href={`/posts/${entry.postSlug}`}>
-                        {entry.title}
+                        {entry.displayTitle ?? entry.title}
                       </Link>
                     ) : (
-                      entry.title
+                      entry.displayTitle ?? entry.title
                     )}
                   </h2>
                 </div>

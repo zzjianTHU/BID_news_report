@@ -1,7 +1,7 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import type { FeedPost } from "@/lib/types";
-import { formatDateLabel, parseTags } from "@/lib/utils";
+import { formatBilingualTitle, formatDateLabel, parseTags, readTranslatedTitle, translateTag } from "@/lib/utils";
 
 type FeedCardProps = {
   post: FeedPost;
@@ -10,8 +10,10 @@ type FeedCardProps = {
 
 export function FeedCard({ post, compact = false }: FeedCardProps) {
   const tags = parseTags(post.tags);
+  const translatedTitle = readTranslatedTitle(post.candidateItem.structuredJson);
+  const displayTitle = formatBilingualTitle(post.title, translatedTitle);
   const coverImageUrl = post.candidateItem.coverImageUrl;
-  const coverImageAlt = post.candidateItem.coverImageAlt || post.title;
+  const coverImageAlt = post.candidateItem.coverImageAlt || displayTitle;
   const postHref = post.slug ? `/posts/${post.slug}` : post.sourceUrl;
 
   return (
@@ -20,13 +22,13 @@ export function FeedCard({ post, compact = false }: FeedCardProps) {
         <div className="inline-tags">
           {tags.slice(0, 3).map((tag) => (
             <span className="tag-pill" key={tag}>
-              {tag}
+              {translateTag(tag)}
             </span>
           ))}
         </div>
         <h3>
           <Link className="feed-card-link" href={postHref}>
-            {post.title}
+            {displayTitle}
           </Link>
         </h3>
         <p className="feed-summary">{post.summary}</p>
@@ -43,10 +45,10 @@ export function FeedCard({ post, compact = false }: FeedCardProps) {
           role={coverImageUrl ? "img" : undefined}
           style={coverImageUrl ? { backgroundImage: `url(${coverImageUrl})` } : undefined}
         >
-          {!coverImageUrl ? <span>{tags[0] ?? "AI"}</span> : null}
+          {!coverImageUrl ? <span>{translateTag(tags[0] ?? "AI")}</span> : null}
         </div>
         <Link className="text-link" href={postHref}>
-          Read brief
+          阅读摘要
         </Link>
       </div>
     </article>

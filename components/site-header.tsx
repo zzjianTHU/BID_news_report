@@ -1,12 +1,21 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/", label: "Home", isActive: (pathname: string) => pathname === "/" },
-  { href: "/archive", label: "Digest", isActive: (pathname: string) => pathname === "/archive" || pathname.startsWith("/digest/") },
-  { href: "/thoughts", label: "Thoughts", isActive: (pathname: string) => pathname === "/thoughts" || pathname.startsWith("/thoughts/") },
+  {
+    href: "/archive",
+    label: "Digest",
+    isActive: (pathname: string) => pathname === "/archive" || pathname.startsWith("/digest/")
+  },
+  {
+    href: "/thoughts",
+    label: "Thoughts",
+    isActive: (pathname: string) => pathname === "/thoughts" || pathname.startsWith("/thoughts/")
+  },
+  { href: "/ops", label: "Ops", isActive: (pathname: string) => pathname === "/ops" },
   { href: "/about", label: "About", isActive: (pathname: string) => pathname === "/about" }
 ] as const;
 

@@ -32,7 +32,11 @@ export function getFeishuAppConfig() {
 }
 
 function getFeishuBitableAppToken() {
-  return requireEnv("FEISHU_SOURCE_APP_TOKEN");
+  return getOptionalEnv("FEISHU_SOURCE_APP_TOKEN");
+}
+
+function getFeishuBitableWikiToken() {
+  return getOptionalEnv("FEISHU_SOURCE_WIKI_TOKEN");
 }
 
 function getFeishuTableId(name: string) {
@@ -43,6 +47,7 @@ export function getFeishuSourceConfig() {
   return {
     ...getFeishuAppConfig(),
     appToken: getFeishuBitableAppToken(),
+    wikiToken: getFeishuBitableWikiToken(),
     tableId: getFeishuTableId("FEISHU_SOURCE_TABLE_ID")
   };
 }
@@ -51,6 +56,7 @@ export function getFeishuModelRouteConfig() {
   return {
     ...getFeishuAppConfig(),
     appToken: getFeishuBitableAppToken(),
+    wikiToken: getFeishuBitableWikiToken(),
     tableId: getFeishuTableId("FEISHU_MODEL_ROUTE_TABLE_ID")
   };
 }
@@ -59,6 +65,7 @@ export function getFeishuWorkflowConfig() {
   return {
     ...getFeishuAppConfig(),
     appToken: getFeishuBitableAppToken(),
+    wikiToken: getFeishuBitableWikiToken(),
     tableId: getFeishuTableId("FEISHU_WORKFLOW_TABLE_ID")
   };
 }
@@ -67,6 +74,7 @@ export function getFeishuDraftConfig() {
   return {
     ...getFeishuAppConfig(),
     appToken: getFeishuBitableAppToken(),
+    wikiToken: getFeishuBitableWikiToken(),
     tableId: getFeishuTableId("FEISHU_DRAFT_TABLE_ID")
   };
 }

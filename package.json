@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "doctor:runtime": "node --env-file=.env scripts/doctor.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node --env-file=.env --import tsx prisma/seed.ts",
@@ -17,6 +18,9 @@
     "worker:sync-feishu-draft-decisions": "node --env-file=.env --import tsx scripts/worker.ts sync-feishu-draft-decisions",
     "worker:generate-digest": "node --env-file=.env --import tsx scripts/worker.ts generate-digest",
     "worker:dispatch-email": "node --env-file=.env --import tsx scripts/worker.ts dispatch-email",
+    "content:regenerate": "node --env-file=.env --import tsx scripts/regenerate-content.ts",
+    "scheduler:apply": "node --env-file=.env --import tsx scripts/sync-local-scheduler.ts apply",
+    "scheduler:remove": "node --env-file=.env --import tsx scripts/sync-local-scheduler.ts remove",
     "automation:run": "npm run worker:run-ingest-cycle"
   },
   "prisma": {

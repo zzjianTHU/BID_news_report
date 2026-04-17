@@ -1,7 +1,6 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import { SiteHeader } from "@/components/site-header";
-
 import { getArchiveDigests } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -13,12 +12,10 @@ export default async function ArchivePage() {
     <main className="page-shell">
       <SiteHeader />
       <div className="page-body">
-
-
         <section className="section-block">
           <p className="section-kicker">Archive</p>
           <h1 className="page-title">每日 digest 归档</h1>
-          <p className="page-intro">默认先提供按日期浏览，后续再叠加更细的搜索和主题过滤。</p>
+          <p className="page-intro">先按日期浏览每日摘要，后面我们再继续补搜索、标签和专题过滤。</p>
         </section>
 
         <div className="archive-list">

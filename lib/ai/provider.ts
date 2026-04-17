@@ -14,6 +14,42 @@ type InvokeModelParams = {
   jsonMode?: boolean;
 };
 
+function isBigModelRoute(route: Pick<ModelRouteConfig, "provider" | "baseUrl" | "model">) {
+  const baseUrl = route.baseUrl?.toLowerCase() ?? "";
+  const model = route.model.toLowerCase();
+
+  return route.provider === "OPENAI_COMPATIBLE" && (baseUrl.includes("bigmodel.cn") || model.startsWith("glm-"));
+}
+
+function extractTextContent(content: unknown): string {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+
+        if (part && typeof part === "object" && "text" in part) {
+          return typeof part.text === "string" ? part.text : "";
+        }
+
+        return "";
+      })
+      .join("\n")
+      .trim();
+  }
+
+  if (content && typeof content === "object" && "text" in content) {
+    return typeof content.text === "string" ? content.text.trim() : "";
+  }
+
+  return "";
+}
+
 function getApiKey(route: Pick<ModelRouteConfig, "apiKeyEnvName">) {
   const value = process.env[route.apiKeyEnvName];
   if (!value) {
@@ -39,7 +75,8 @@ async function invokeOpenAiStyle(params: InvokeModelParams) {
   const apiKey = getApiKey(params.route);
   const baseUrl = normalizeBaseUrl(params.route.baseUrl, "https://api.openai.com/v1");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), params.route.timeoutMs);
+  const timeoutMs = isBigModelRoute(params.route) ? Math.max(params.route.timeoutMs, 90_000) : params.route.timeoutMs;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -54,6 +91,7 @@ async function invokeOpenAiStyle(params: InvokeModelParams) {
         temperature: params.route.temperature,
         max_tokens: params.route.maxTokens,
         response_format: params.jsonMode ? { type: "json_object" } : undefined,
+        thinking: isBigModelRoute(params.route) ? { type: "disabled" } : undefined,
         messages: params.messages
       })
     });
@@ -65,12 +103,13 @@ async function invokeOpenAiStyle(params: InvokeModelParams) {
     const payload = (await response.json()) as {
       choices?: Array<{
         message?: {
-          content?: string;
+          content?: unknown;
+          reasoning_content?: string;
         };
       }>;
     };
 
-    const content = payload.choices?.[0]?.message?.content?.trim();
+    const content = extractTextContent(payload.choices?.[0]?.message?.content);
     if (!content) {
       throw new Error("OpenAI-compatible response did not include message content.");
     }

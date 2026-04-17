@@ -21,8 +21,16 @@ type FeishuRecordPage = {
 };
 
 type FeishuTableConfig = {
-  appToken: string;
+  appToken: string | null;
+  wikiToken?: string | null;
   tableId: string;
+};
+
+type WikiNodeResponse = {
+  node?: {
+    obj_token?: string;
+    obj_type?: string;
+  };
 };
 
 export type FeishuSourceRecord = {
@@ -236,6 +244,7 @@ function buildSourceSlug(name: string, recordId: string) {
 }
 
 async function listFeishuRecords(config: FeishuTableConfig) {
+  const appToken = await resolveBitableAppToken(config);
   const items: FeishuRecord[] = [];
   let pageToken: string | undefined;
 
@@ -249,7 +258,7 @@ async function listFeishuRecords(config: FeishuTableConfig) {
     }
 
     const page = await feishuRequest<FeishuRecordPage>(
-      `/bitable/v1/apps/${config.appToken}/tables/${config.tableId}/records?${query.toString()}`
+      `/bitable/v1/apps/${appToken}/tables/${config.tableId}/records?${query.toString()}`
     );
 
     items.push(...page.items);
@@ -260,8 +269,9 @@ async function listFeishuRecords(config: FeishuTableConfig) {
 }
 
 async function createFeishuRecord(config: FeishuTableConfig, fields: Record<string, unknown>) {
+  const appToken = await resolveBitableAppToken(config);
   const data = await feishuRequest<{ record: FeishuRecord }>(
-    `/bitable/v1/apps/${config.appToken}/tables/${config.tableId}/records`,
+    `/bitable/v1/apps/${appToken}/tables/${config.tableId}/records`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -278,8 +288,9 @@ async function updateFeishuRecord(
   recordId: string,
   fields: Record<string, unknown>
 ) {
+  const appToken = await resolveBitableAppToken(config);
   const data = await feishuRequest<{ record: FeishuRecord }>(
-    `/bitable/v1/apps/${config.appToken}/tables/${config.tableId}/records/${recordId}`,
+    `/bitable/v1/apps/${appToken}/tables/${config.tableId}/records/${recordId}`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -289,6 +300,41 @@ async function updateFeishuRecord(
   );
 
   return data.record;
+}
+
+const resolvedWikiTokenCache = new Map<string, string>();
+
+async function resolveBitableAppToken(config: FeishuTableConfig) {
+  if (config.appToken) {
+    return config.appToken;
+  }
+
+  if (!config.wikiToken) {
+    throw new Error(
+      "Missing Feishu bitable token. Set FEISHU_SOURCE_APP_TOKEN or FEISHU_SOURCE_WIKI_TOKEN."
+    );
+  }
+
+  const cached = resolvedWikiTokenCache.get(config.wikiToken);
+  if (cached) {
+    return cached;
+  }
+
+  const data = await feishuRequest<WikiNodeResponse>(
+    `/wiki/v2/spaces/get_node?token=${encodeURIComponent(config.wikiToken)}`
+  );
+
+  const objToken = data.node?.obj_token?.trim();
+  const objType = data.node?.obj_type?.trim();
+
+  if (!objToken || objType !== "bitable") {
+    throw new Error(
+      `Failed to resolve wiki token "${config.wikiToken}" into a bitable app token. Resolved type: ${objType ?? "unknown"}.`
+    );
+  }
+
+  resolvedWikiTokenCache.set(config.wikiToken, objToken);
+  return objToken;
 }
 
 function mapFeishuSourceRecord(record: FeishuRecord): FeishuSourceRecord | null {
@@ -524,12 +570,19 @@ export async function createOrUpdateFeishuDraftRecord(
 ) {
   const config = getFeishuDraftConfig();
   const normalizedFields = Object.fromEntries(
-    Object.entries(fields).map(([key, value]) => [
-      key,
-      typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null
-        ? value
-        : JSON.stringify(value)
-    ])
+    Object.entries(fields).map(([key, value]) => {
+      if (key === "publishedAt" && typeof value === "string") {
+        const timestamp = Date.parse(value);
+        return [key, Number.isFinite(timestamp) ? timestamp : value];
+      }
+
+      return [
+        key,
+        typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null
+          ? value
+          : JSON.stringify(value)
+      ];
+    })
   );
 
   if (recordId) {

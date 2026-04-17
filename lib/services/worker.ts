@@ -47,6 +47,43 @@ type IngestCycleResult = {
 
 const FEED_FETCH_LIMIT = 5;
 const LOCK_TIMEOUT_MS = 15 * 60 * 1000;
+const WEB_NOISE_TITLE_PATTERNS = [
+  /^skip to main content$/i,
+  /^download press kit$/i,
+  /^press kit$/i,
+  /^newsletter subscribe$/i,
+  /^this story is about ai$/i,
+  /^latest updates from mistral ai\.?$/i,
+  /^build on ai studio$/i,
+  /^official microsoft blog$/i,
+  /^microsoft on the issues$/i,
+  /^publications$/i,
+  /^read more$/i,
+  /^learn more$/i,
+  /^see all$/i,
+  /^view all$/i,
+  /^home$/i,
+  /^about$/i,
+  /^contact$/i,
+  /^careers?$/i,
+  /^jobs?$/i,
+  /^privacy(?: policy)?$/i,
+  /^terms(?: of service)?$/i,
+  /^cookie(?: policy| settings)?$/i,
+  /^sign in$/i,
+  /^log in$/i,
+  /^menu$/i
+];
+const WEB_NOISE_URL_PATTERNS = [
+  /\/(privacy|terms|cookies?|press-?kit|brand|legal|contact|careers?|jobs?|about)(\/|$)/i
+];
+const WEB_CHROME_SELECTOR =
+  "header, nav, footer, [role='navigation'], [aria-label*='navigation' i], .nav, .menu, .footer, .header, .breadcrumb";
+const WEB_TITLE_PREFIX_PATTERNS = [
+  /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2},\s+\d{4}\s*/i,
+  /^(?:announcements?|product|research|policy|company|customers?|engineering|events?)\s*/i,
+  /^read more about\s*/i
+];
 
 const rssParser = new Parser();
 
@@ -142,6 +179,25 @@ function normalizeUrl(rawUrl: string, baseUrl?: string) {
 
 function stripHtml(value: string) {
   return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTitleText(value: string) {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function sanitizeWebTitle(value: string) {
+  let title = value.replace(/\s+/g, " ").trim();
+  let previous = "";
+
+  while (title && title !== previous) {
+    previous = title;
+
+    for (const pattern of WEB_TITLE_PREFIX_PATTERNS) {
+      title = title.replace(pattern, "").trim();
+    }
+  }
+
+  return title;
 }
 
 function clampText(value: string, maxLength: number) {
@@ -257,7 +313,102 @@ function extractPageImageFromHtml(html: string, pageUrl: string) {
   };
 }
 
-async function fetchArticleCover(url: string) {
+function isLikelyBoilerplateText(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim().toLowerCase();
+
+  if (!normalized) {
+    return true;
+  }
+
+  return (
+    normalized.length < 24 ||
+    WEB_NOISE_TITLE_PATTERNS.some((pattern) => pattern.test(normalized)) ||
+    /(cookie|privacy|terms|subscribe|newsletter|copyright|all rights reserved|sign in|log in)/i.test(normalized)
+  );
+}
+
+function extractArticleTextFromHtml(html: string) {
+  const $ = cheerio.load(html);
+  $(WEB_CHROME_SELECTOR).remove();
+  $("script, style, noscript, iframe, svg, form, button").remove();
+
+  const rootSelectors = [
+    "article",
+    "main article",
+    "[role='main'] article",
+    "main",
+    "[role='main']",
+    ".article",
+    ".post",
+    ".entry-content",
+    ".content",
+    ".prose"
+  ];
+
+  let root = $("body");
+  for (const selector of rootSelectors) {
+    const candidate = $(selector).first();
+    if (candidate.length > 0 && candidate.text().trim().length > root.text().trim().length / 3) {
+      root = candidate;
+      break;
+    }
+  }
+
+  const blocks = root
+    .find("h1, h2, h3, p, li")
+    .map((_, element) => $(element).text().replace(/\s+/g, " ").trim())
+    .get()
+    .filter(Boolean);
+
+  const uniqueBlocks: string[] = [];
+  const seen = new Set<string>();
+
+  for (const block of blocks) {
+    const normalized = block.toLowerCase();
+    if (seen.has(normalized) || isLikelyBoilerplateText(block)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    uniqueBlocks.push(block);
+  }
+
+  const excerpt =
+    $('meta[name="description"]').attr("content")?.trim() ||
+    $('meta[property="og:description"]').attr("content")?.trim() ||
+    uniqueBlocks.find((block) => block.length >= 40) ||
+    uniqueBlocks[0] ||
+    "";
+
+  const rawContent = uniqueBlocks.join("\n\n");
+
+  return {
+    excerpt: clampText(excerpt, 220),
+    rawContent: clampText(rawContent || excerpt, 4200)
+  };
+}
+
+export function shouldReplaceWithArticleBody(currentRawContent: string, detailedRawContent: string, title: string) {
+  const current = currentRawContent.replace(/\s+/g, " ").trim();
+  const detailed = detailedRawContent.replace(/\s+/g, " ").trim();
+  const normalizedTitle = title.replace(/\s+/g, " ").trim().toLowerCase();
+
+  if (!detailed || detailed.length < 120) {
+    return false;
+  }
+
+  if (current.length < 120) {
+    return true;
+  }
+
+  if (current.toLowerCase() === normalizedTitle || current.toLowerCase().startsWith(normalizedTitle)) {
+    return true;
+  }
+
+  return detailed.length > current.length + 120;
+}
+
+export async function fetchArticleDetails(url: string) {
   try {
     const response = await fetch(url, {
       headers: {
@@ -267,6 +418,8 @@ async function fetchArticleCover(url: string) {
 
     if (!response.ok) {
       return {
+        excerpt: null,
+        rawContent: null,
         coverImageUrl: null,
         coverImageAlt: null
       };
@@ -274,13 +427,18 @@ async function fetchArticleCover(url: string) {
 
     const html = await response.text();
     const image = extractPageImageFromHtml(html, url);
+    const article = extractArticleTextFromHtml(html);
 
     return {
+      excerpt: article.excerpt || null,
+      rawContent: article.rawContent || null,
       coverImageUrl: image.url,
       coverImageAlt: image.alt
     };
   } catch {
     return {
+      excerpt: null,
+      rawContent: null,
       coverImageUrl: null,
       coverImageAlt: null
     };
@@ -293,6 +451,111 @@ function getListingImage(element: cheerio.Cheerio<any>, sourceUrl: string) {
     normalizeMediaUrl(element.find("img").first().attr("data-src"), sourceUrl) ||
     parseSrcset(element.find("img").first().attr("srcset"), sourceUrl)
   );
+}
+
+function getListingTitle(
+  $: cheerio.CheerioAPI,
+  element: cheerio.Cheerio<any>,
+  container: cheerio.Cheerio<any>
+) {
+  const candidates = [
+    element.attr("aria-label"),
+    element.attr("title"),
+    container.find("h1, h2, h3, h4").first().text(),
+    element.find("h1, h2, h3, h4").first().text(),
+    element.text()
+  ];
+
+  for (const value of candidates) {
+    const normalized = sanitizeWebTitle(value ?? "");
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+function getListingContainer(element: cheerio.Cheerio<any>) {
+  const articleLike = element.closest("article, li");
+  if (articleLike.length > 0) {
+    return articleLike.first();
+  }
+
+  const sectionLike = element.closest("section");
+  if (sectionLike.length > 0) {
+    const immediateParent = element.parent();
+    if (immediateParent.length > 0) {
+      return immediateParent.first();
+    }
+    return sectionLike.first();
+  }
+
+  const parent = element.parent();
+  if (parent.length > 0) {
+    return parent.first();
+  }
+
+  return element;
+}
+
+function getListingExcerpt(
+  element: cheerio.Cheerio<any>,
+  container: cheerio.Cheerio<any>,
+  fallback: string
+) {
+  const candidates = [
+    container.find("p").first().text(),
+    element.find("p").first().text(),
+    container.text(),
+    element.text()
+  ];
+
+  for (const value of candidates) {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    if (normalized) {
+      return clampText(normalized, 180);
+    }
+  }
+
+  return fallback;
+}
+
+function isLikelyWebNoiseTitle(title: string) {
+  const normalized = normalizeTitleText(title);
+
+  if (!normalized) {
+    return true;
+  }
+
+  const looksLikeImageAlt =
+    normalized === title.trim().toLowerCase() &&
+    /\b(image|illustration|logo|people|person|stage|conference|photo|graphic|icon)\b/i.test(normalized);
+
+  if (looksLikeImageAlt) {
+    return true;
+  }
+
+  return WEB_NOISE_TITLE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function isLikelyWebNoiseUrl(url: string, sourceUrl: string) {
+  try {
+    const parsedUrl = new URL(url);
+    const parsedSourceUrl = new URL(sourceUrl);
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return true;
+    }
+
+    if (parsedUrl.origin === parsedSourceUrl.origin && parsedUrl.pathname === parsedSourceUrl.pathname) {
+      return true;
+    }
+
+    return WEB_NOISE_URL_PATTERNS.some((pattern) => pattern.test(parsedUrl.pathname));
+  } catch {
+    return true;
+  }
 }
 
 async function fetchRssItems(source: Source) {
@@ -309,19 +572,25 @@ async function fetchRssItems(source: Source) {
       readImageCandidate((item as Record<string, unknown>)["media:thumbnail"], url) ||
       readImageCandidate(item.content, url) ||
       readImageCandidate(item.contentSnippet, url);
-
+    const article = await fetchArticleDetails(url);
+    const enhancedRawContent =
+      article.rawContent && shouldReplaceWithArticleBody(rawContent, article.rawContent, title)
+        ? article.rawContent
+        : rawContent;
+    const enhancedExcerpt =
+      article.excerpt && article.excerpt.length > 40 ? article.excerpt : enhancedRawContent || source.description;
     const remoteCover = inlineImage
       ? {
           coverImageUrl: inlineImage,
           coverImageAlt: title
         }
-      : await fetchArticleCover(url);
+      : article;
 
     items.push({
       title,
       url,
-      excerpt: clampText(rawContent || source.description, 180),
-      rawContent,
+      excerpt: clampText(enhancedExcerpt || source.description, 220),
+      rawContent: clampText(enhancedRawContent || enhancedExcerpt || source.description, 4200),
       tags: source.tags,
       coverImageUrl: remoteCover.coverImageUrl ?? undefined,
       coverImageAlt: remoteCover.coverImageAlt ?? title
@@ -352,24 +621,32 @@ async function fetchWebItems(source: Source) {
       return false;
     }
 
+    const currentElement = $(element);
     const href = $(element).attr("href");
-    const title = $(element).text().replace(/\s+/g, " ").trim();
+    const container = getListingContainer(currentElement);
+    const title = getListingTitle($, currentElement, container);
 
     if (!href || title.length < 12) {
       return;
     }
 
     const url = normalizeUrl(href, source.url);
+    const isChromeLink = currentElement.closest(WEB_CHROME_SELECTOR).length > 0;
 
-    if (!url.startsWith("http") || seen.has(url)) {
+    if (
+      !url.startsWith("http") ||
+      seen.has(url) ||
+      isChromeLink ||
+      isLikelyWebNoiseTitle(title) ||
+      isLikelyWebNoiseUrl(url, source.url)
+    ) {
       return;
     }
 
     seen.add(url);
 
-    const container = $(element).closest("article, li, div");
-    const excerpt = clampText(container.text().replace(/\s+/g, " ").trim(), 180) || source.description;
-    const coverImageUrl = getListingImage(container, source.url) || getListingImage($(element), source.url);
+    const excerpt = getListingExcerpt(currentElement, container, source.description);
+    const coverImageUrl = getListingImage(container, source.url) || getListingImage(currentElement, source.url);
 
     items.push({
       title,
@@ -387,15 +664,20 @@ async function fetchWebItems(source: Source) {
   if (items.length > 0) {
     return Promise.all(
       items.map(async (item) => {
-        if (item.coverImageUrl) {
-          return item;
-        }
+        const article = await fetchArticleDetails(item.url);
+        const nextRawContent =
+          article.rawContent && shouldReplaceWithArticleBody(item.rawContent, article.rawContent, item.title)
+            ? article.rawContent
+            : item.rawContent;
+        const nextExcerpt =
+          article.excerpt && article.excerpt.length > 40 ? article.excerpt : nextRawContent || item.excerpt;
 
-        const remoteCover = await fetchArticleCover(item.url);
         return {
           ...item,
-          coverImageUrl: remoteCover.coverImageUrl ?? undefined,
-          coverImageAlt: remoteCover.coverImageAlt ?? item.title
+          excerpt: clampText(nextExcerpt || item.excerpt, 220),
+          rawContent: clampText(nextRawContent || nextExcerpt || item.rawContent, 4200),
+          coverImageUrl: item.coverImageUrl ?? article.coverImageUrl ?? undefined,
+          coverImageAlt: item.coverImageAlt ?? article.coverImageAlt ?? item.title
         };
       })
     );
@@ -406,15 +688,15 @@ async function fetchWebItems(source: Source) {
     $('meta[name="description"]').attr("content")?.trim() ||
     $('meta[property="og:description"]').attr("content")?.trim() ||
     source.description;
-
   const fallbackCover = extractPageImageFromHtml(html, source.url);
+  const pageArticle = extractArticleTextFromHtml(html);
 
   return [
     {
       title: pageTitle,
       url: normalizeUrl(source.url),
-      excerpt: clampText(pageDescription, 180),
-      rawContent: pageDescription,
+      excerpt: clampText(pageArticle.excerpt || pageDescription, 220),
+      rawContent: clampText(pageArticle.rawContent || pageArticle.excerpt || pageDescription, 4200),
       tags: source.tags,
       coverImageUrl: fallbackCover.url ?? undefined,
       coverImageAlt: fallbackCover.alt ?? pageTitle
@@ -544,7 +826,7 @@ async function getModelRouteMap() {
   return new Map<string, ModelRouteConfig>(routes.map((route) => [route.routeKey, route]));
 }
 
-async function syncDraftRecord(candidateId: string) {
+export async function syncDraftRecord(candidateId: string) {
   const candidate = await prisma.candidateItem.findUnique({
     where: {
       id: candidateId
@@ -604,6 +886,42 @@ async function syncDraftRecord(candidateId: string) {
     );
     return null;
   }
+}
+
+async function syncPendingDraftsToFeishu() {
+  const pendingCandidates = await prisma.candidateItem.findMany({
+    where: {
+      OR: [
+        {
+          status: CandidateStatus.REVIEW
+        },
+        {
+          status: CandidateStatus.PUBLISHED
+        },
+        {
+          status: CandidateStatus.REJECTED
+        }
+      ],
+      feishuDraftRecordId: null
+    },
+    select: {
+      id: true
+    },
+    orderBy: {
+      createdAt: "asc"
+    }
+  });
+
+  let syncedCount = 0;
+
+  for (const candidate of pendingCandidates) {
+    const recordId = await syncDraftRecord(candidate.id);
+    if (recordId) {
+      syncedCount += 1;
+    }
+  }
+
+  return syncedCount;
 }
 
 async function claimSource(sourceId: string) {
@@ -1030,6 +1348,7 @@ export async function syncFeishuControlPlane() {
 }
 
 export async function syncFeishuDraftDecisions() {
+  const pushedCount = await syncPendingDraftsToFeishu();
   const draftRecords = await listFeishuDraftRecords();
   let syncedCount = 0;
   let approvedCount = 0;
@@ -1095,6 +1414,7 @@ export async function syncFeishuDraftDecisions() {
   }
 
   return {
+    pushedCount,
     syncedCount,
     approvedCount,
     rejectedCount

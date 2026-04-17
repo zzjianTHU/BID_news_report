@@ -161,6 +161,25 @@ model ModelRouteConfig {
   updatedAt     DateTime      @updatedAt
 }
 
+model SchedulerConfig {
+  id                            String   @id @default(cuid())
+  key                           String   @unique @default("default")
+  enabled                       Boolean  @default(true)
+  ingestIntervalMinutes         Int      @default(15)
+  sourceSyncIntervalMinutes     Int      @default(60)
+  controlPlaneSyncIntervalMinutes Int    @default(60)
+  draftSyncIntervalMinutes      Int      @default(15)
+  digestGenerationHour          Int      @default(20)
+  notes                         String?
+  lastIngestRunAt               DateTime?
+  lastSourceSyncAt              DateTime?
+  lastControlPlaneSyncAt        DateTime?
+  lastDraftSyncAt               DateTime?
+  lastDigestRunAt               DateTime?
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+}
+
 model IngestionRun {
   id             String      @id @default(cuid())
   sourceId       String?

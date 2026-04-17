@@ -7,7 +7,9 @@ import { redirect } from "next/navigation";
 import { clearAdminSession, createAdminSession, getAdminCredentials } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { queueDigestDispatches } from "@/lib/services/digest";
+import { installLocalSchedulerTasks, removeLocalSchedulerTasks } from "@/lib/services/local-scheduler";
 import { publishCandidate, rejectCandidate } from "@/lib/services/publishing";
+import { runWorkerTask } from "@/lib/services/worker";
 import { durationFromTab, slugify } from "@/lib/utils";
 
 export async function loginAction(formData: FormData) {
@@ -20,7 +22,7 @@ export async function loginAction(formData: FormData) {
   }
 
   await createAdminSession();
-  redirect("/admin/queue");
+  redirect("/admin");
 }
 
 export async function logoutAction() {
@@ -106,6 +108,131 @@ export async function toggleSourceAction(formData: FormData) {
   revalidatePath("/admin/sources");
 }
 
+export async function saveSchedulerConfigAction(formData: FormData) {
+  const enabled = String(formData.get("enabled") ?? "") === "true";
+  const ingestIntervalMinutes = Number(formData.get("ingestIntervalMinutes") ?? 15);
+  const sourceSyncIntervalMinutes = Number(formData.get("sourceSyncIntervalMinutes") ?? 60);
+  const controlPlaneSyncIntervalMinutes = Number(formData.get("controlPlaneSyncIntervalMinutes") ?? 60);
+  const draftSyncIntervalMinutes = Number(formData.get("draftSyncIntervalMinutes") ?? 15);
+  const digestGenerationHour = Number(formData.get("digestGenerationHour") ?? 20);
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  await prisma.schedulerConfig.upsert({
+    where: {
+      key: "default"
+    },
+    update: {
+      enabled,
+      ingestIntervalMinutes,
+      sourceSyncIntervalMinutes,
+      controlPlaneSyncIntervalMinutes,
+      draftSyncIntervalMinutes,
+      digestGenerationHour,
+      notes: notes || null
+    },
+    create: {
+      key: "default",
+      enabled,
+      ingestIntervalMinutes,
+      sourceSyncIntervalMinutes,
+      controlPlaneSyncIntervalMinutes,
+      draftSyncIntervalMinutes,
+      digestGenerationHour,
+      notes: notes || null
+    }
+  });
+
+  revalidatePath("/admin/scheduler");
+  revalidatePath("/admin");
+}
+
+export async function runWorkerTaskAction(formData: FormData) {
+  const task = String(formData.get("task") ?? "").trim();
+
+  if (!task) {
+    return;
+  }
+
+  await runWorkerTask(task as Parameters<typeof runWorkerTask>[0]);
+
+  const schedulerUpdate: Record<string, Date | undefined> = {};
+  const now = new Date();
+
+  if (task === "sync-feishu-sources") {
+    schedulerUpdate.lastSourceSyncAt = now;
+  }
+
+  if (task === "sync-feishu-control-plane") {
+    schedulerUpdate.lastControlPlaneSyncAt = now;
+  }
+
+  if (task === "run-ingest-cycle") {
+    schedulerUpdate.lastIngestRunAt = now;
+  }
+
+  if (task === "sync-feishu-draft-decisions") {
+    schedulerUpdate.lastDraftSyncAt = now;
+  }
+
+  if (task === "generate-digest") {
+    schedulerUpdate.lastDigestRunAt = now;
+  }
+
+  if (Object.keys(schedulerUpdate).length > 0) {
+    await prisma.schedulerConfig.upsert({
+      where: {
+        key: "default"
+      },
+      update: schedulerUpdate,
+      create: {
+        key: "default",
+        ...schedulerUpdate
+      }
+    });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/ops");
+  revalidatePath("/admin");
+  revalidatePath("/admin/scheduler");
+  revalidatePath("/admin/sources");
+  revalidatePath("/admin/queue");
+}
+
+export async function installLocalSchedulerAction() {
+  const scheduler = await prisma.schedulerConfig.upsert({
+    where: {
+      key: "default"
+    },
+    update: {},
+    create: {
+      key: "default"
+    }
+  });
+
+  await installLocalSchedulerTasks(scheduler);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/scheduler");
+}
+
+export async function removeLocalSchedulerAction() {
+  const scheduler = await prisma.schedulerConfig.upsert({
+    where: {
+      key: "default"
+    },
+    update: {},
+    create: {
+      key: "default"
+    }
+  });
+
+  await removeLocalSchedulerTasks(scheduler);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/scheduler");
+}
+
 export async function saveWorkflowAction(formData: FormData) {
   const workflowId = String(formData.get("workflowId") ?? "");
 
@@ -154,7 +281,42 @@ export async function reviewCandidateAction(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/ops");
+  revalidatePath("/admin");
   revalidatePath("/admin/queue");
+}
+
+export async function bulkReviewCandidatesAction(formData: FormData) {
+  const candidateIds = formData
+    .getAll("candidateIds")
+    .map((value) => String(value))
+    .filter(Boolean);
+  const decision = String(formData.get("decision") ?? "");
+
+  if (candidateIds.length === 0) {
+    return { count: 0, decision, ok: false };
+  }
+
+  for (const candidateId of candidateIds) {
+    if (decision === "publish") {
+      await publishCandidate(candidateId, "admin-bulk-review");
+    }
+
+    if (decision === "reject") {
+      await rejectCandidate(candidateId, "admin-bulk-review");
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/ops");
+  revalidatePath("/admin");
+  revalidatePath("/admin/queue");
+
+  return {
+    count: candidateIds.length,
+    decision,
+    ok: true
+  };
 }
 
 export async function createThoughtAction(formData: FormData) {

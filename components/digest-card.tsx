@@ -15,7 +15,7 @@ export function DigestCard({ digest, view = "3" }: DigestCardProps) {
 
   return (
     <article className="digest-hero-card">
-      <p className="section-kicker">Latest digest</p>
+      <p className="section-kicker">最新日报</p>
       <h1>{digest.title}</h1>
       <p className="digest-hero-summary">{summary}</p>
 
@@ -24,7 +24,7 @@ export function DigestCard({ digest, view = "3" }: DigestCardProps) {
           <div className="digest-preview-row" key={`${item.duration}-${item.order}`}>
             <span className="digest-order">{String(item.order).padStart(2, "0")}</span>
             <div>
-              <h2>{item.title}</h2>
+              <h2>{item.displayTitle ?? item.title}</h2>
               <p>{item.summary}</p>
             </div>
           </div>
@@ -33,7 +33,7 @@ export function DigestCard({ digest, view = "3" }: DigestCardProps) {
 
       <div className="digest-hero-footer">
         <Link className="button button-light" href={`/digest/${digest.date}?view=${view}`}>
-          Read the latest
+          查看日报
         </Link>
         <div className="digest-footnote">
           <span>{formatLongDate(digest.date)}</span>

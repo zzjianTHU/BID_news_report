@@ -1,9 +1,9 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
 import { getCandidatePreview } from "@/lib/data";
-import { formatDateLabel, parseTags } from "@/lib/utils";
+import { formatDateLabel, parseTags, translateTag } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +45,7 @@ export default async function CandidatePreviewPage({ params }: CandidatePreviewP
             <div className="inline-tags">
               {tags.slice(0, 4).map((tag) => (
                 <span className="tag-pill" key={tag}>
-                  {tag}
+                  {translateTag(tag)}
                 </span>
               ))}
             </div>
@@ -56,7 +56,7 @@ export default async function CandidatePreviewPage({ params }: CandidatePreviewP
 
             <div className="feed-meta">
               <span>{candidate.source.name}</span>
-              <span>{candidate.riskLevel}</span>
+              <span>{candidate.riskLevel === "HIGH" ? "高风险" : "低风险"}</span>
               <span>{candidate.status}</span>
               <span>{formatDateLabel(candidate.createdAt)}</span>
             </div>
@@ -64,20 +64,16 @@ export default async function CandidatePreviewPage({ params }: CandidatePreviewP
 
           <article className="split-card accent">
             <p className="section-kicker">Workflow status</p>
-            <h2>
-              {candidate.status === "PUBLISHED"
-                ? "这条内容已经对外可见"
-                : "这条内容正等待飞书审批"}
-            </h2>
+            <h2>{candidate.status === "PUBLISHED" ? "这条内容已经对外可见" : "这条内容正在等待审核"}</h2>
             <p>
-              来源为 <strong>{candidate.source.name}</strong>。如果这条内容已发布，公开站首页和 digest 任务都会在后续轮次里自动读取它。
+              来源于 <strong>{candidate.source.name}</strong>。如果这条内容已经发布，公开站首页和 digest 任务都会在后续轮次里自动读取它。
             </p>
             <div className="archive-actions">
               <Link className="button button-secondary" href={candidate.normalizedUrl} target="_blank">
                 查看原文
               </Link>
-              <Link className="button button-primary" href="/">
-                返回首页
+              <Link className="button button-primary" href="/admin/queue">
+                返回审核列表
               </Link>
             </div>
           </article>

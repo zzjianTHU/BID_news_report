@@ -5,11 +5,13 @@ import {
   DispatchStatus,
   Prisma,
   RiskLevel,
+  RunStatus,
   ThoughtStatus
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import type { DashboardSnapshot, FeedWindow } from "@/lib/types";
+import { readTranslatedTitle } from "@/lib/utils";
 
 function shouldUseDataFallback(error: unknown) {
   return (
@@ -29,6 +31,50 @@ async function withDataFallback<T>(label: string, fallbackValue: T, query: () =>
 
     throw error;
   }
+}
+
+async function attachDigestDisplayTitles<T extends { entries: Array<{ postSlug?: string | null; title: string }> }>(
+  digest: T | null
+) {
+  if (!digest) {
+    return digest;
+  }
+
+  const slugs = digest.entries
+    .map((entry) => entry.postSlug)
+    .filter((slug): slug is string => Boolean(slug));
+
+  if (slugs.length === 0) {
+    return digest;
+  }
+
+  const posts = await prisma.autoPost.findMany({
+    where: {
+      slug: {
+        in: slugs
+      }
+    },
+    select: {
+      slug: true,
+      candidateItem: {
+        select: {
+          structuredJson: true
+        }
+      }
+    }
+  });
+
+  const titleMap = new Map(
+    posts.map((post) => [post.slug, readTranslatedTitle(post.candidateItem?.structuredJson)])
+  );
+
+  return {
+    ...digest,
+    entries: digest.entries.map((entry) => ({
+      ...entry,
+      displayTitle: (entry.postSlug && titleMap.get(entry.postSlug)) || entry.title
+    }))
+  };
 }
 
 export async function getSiteSnapshot(): Promise<DashboardSnapshot> {
@@ -116,8 +162,9 @@ export async function getFeedPosts(tag?: string, window: FeedWindow = "24h") {
 }
 
 export async function getLatestDigest() {
-  return withDataFallback("getLatestDigest", null, () =>
-    prisma.digest.findFirst({
+  return withDataFallback("getLatestDigest", null, async () =>
+    attachDigestDisplayTitles(
+      await prisma.digest.findFirst({
       include: {
         entries: {
           orderBy: [
@@ -134,12 +181,14 @@ export async function getLatestDigest() {
         date: "desc"
       }
     })
+    )
   );
 }
 
 export async function getDigestByDate(date: string) {
-  return withDataFallback("getDigestByDate", null, () =>
-    prisma.digest.findUnique({
+  return withDataFallback("getDigestByDate", null, async () =>
+    attachDigestDisplayTitles(
+      await prisma.digest.findUnique({
       where: {
         date
       },
@@ -151,6 +200,7 @@ export async function getDigestByDate(date: string) {
         }
       }
     })
+    )
   );
 }
 
@@ -247,6 +297,121 @@ export async function getQueueItems() {
     },
     orderBy: [{ riskLevel: "desc" }, { createdAt: "desc" }]
   });
+}
+
+export async function getCandidateAdminList() {
+  return prisma.candidateItem.findMany({
+    include: {
+      source: true
+    },
+    orderBy: [{ createdAt: "desc" }]
+  });
+}
+
+export async function getRecentPublishedPosts(limit = 6) {
+  return prisma.autoPost.findMany({
+    where: {
+      status: AutoPostStatus.PUBLISHED
+    },
+    include: {
+      candidateItem: {
+        include: {
+          source: true
+        }
+      }
+    },
+    orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+    take: limit
+  });
+}
+
+export async function getSourceAlerts(limit = 8) {
+  return prisma.source.findMany({
+    where: {
+      OR: [{ failureCount: { gt: 0 } }, { lastError: { not: null } }]
+    },
+    orderBy: [{ failureCount: "desc" }, { updatedAt: "desc" }],
+    take: limit
+  });
+}
+
+export async function getSourceAdminList() {
+  return prisma.source.findMany({
+    include: {
+      ingestionRuns: {
+        orderBy: [{ startedAt: "desc" }],
+        take: 3
+      }
+    },
+    orderBy: [{ enabled: "desc" }, { priority: "desc" }, { updatedAt: "desc" }]
+  });
+}
+
+export async function getSourceById(sourceId: string) {
+  return prisma.source.findUnique({
+    where: {
+      id: sourceId
+    },
+    include: {
+      ingestionRuns: {
+        orderBy: [{ startedAt: "desc" }],
+        take: 10
+      },
+      candidateItems: {
+        orderBy: [{ createdAt: "desc" }],
+        take: 10
+      }
+    }
+  });
+}
+
+export async function getRecentIngestionRuns(limit = 12) {
+  return prisma.ingestionRun.findMany({
+    include: {
+      source: true
+    },
+    orderBy: [{ startedAt: "desc" }],
+    take: limit
+  });
+}
+
+export async function getSchedulerConfig() {
+  return prisma.schedulerConfig.upsert({
+    where: {
+      key: "default"
+    },
+    update: {},
+    create: {
+      key: "default"
+    }
+  });
+}
+
+export async function getIngestionHealthSnapshot() {
+  const [lastRun, successCount, failedCount] = await Promise.all([
+    prisma.ingestionRun.findFirst({
+      orderBy: [{ startedAt: "desc" }],
+      include: {
+        source: true
+      }
+    }),
+    prisma.ingestionRun.count({
+      where: {
+        status: RunStatus.SUCCESS
+      }
+    }),
+    prisma.ingestionRun.count({
+      where: {
+        status: RunStatus.FAILED
+      }
+    })
+  ]);
+
+  return {
+    lastRun,
+    successCount,
+    failedCount
+  };
 }
 
 export async function getPublishedDigests() {

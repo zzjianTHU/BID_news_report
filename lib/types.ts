@@ -5,6 +5,8 @@ import type {
   DigestDuration,
   DigestEntry,
   EmailDispatch,
+  IngestionRun,
+  SchedulerConfig,
   Source,
   Subscriber,
   ThoughtPost,
@@ -24,7 +26,11 @@ export type PublicPost = AutoPost & {
 };
 
 export type DigestWithEntries = Digest & {
-  entries: DigestEntry[];
+  entries: Array<
+    DigestEntry & {
+      displayTitle?: string;
+    }
+  >;
 };
 
 export type SubscriberWithDispatches = Subscriber & {
@@ -38,6 +44,12 @@ export type DashboardSnapshot = {
   subscriberCount: number;
   lowRiskAutoPublishRate: number;
 };
+
+export type SourceWithRuns = Source & {
+  ingestionRuns: IngestionRun[];
+};
+
+export type SchedulerSettings = SchedulerConfig;
 
 export type SourceInput = Pick<
   Source,

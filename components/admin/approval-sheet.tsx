@@ -1,7 +1,7 @@
-import { CandidateStatus, RiskLevel, type CandidateItem, type Source } from "@prisma/client";
+﻿import { CandidateStatus, RiskLevel, type CandidateItem, type Source } from "@prisma/client";
 
 import { reviewCandidateAction } from "@/lib/actions";
-import { parseTags } from "@/lib/utils";
+import { formatBilingualTitle, parseTags, readTranslatedTitle, translateTag } from "@/lib/utils";
 
 type ApprovalSheetProps = {
   item: CandidateItem & {
@@ -9,18 +9,34 @@ type ApprovalSheetProps = {
   };
 };
 
+function statusLabel(status: CandidateStatus) {
+  switch (status) {
+    case CandidateStatus.REVIEW:
+      return "待审核";
+    case CandidateStatus.INGESTED:
+      return "刚入队";
+    case CandidateStatus.PUBLISHED:
+      return "已发布";
+    case CandidateStatus.REJECTED:
+      return "已拒绝";
+    default:
+      return status;
+  }
+}
+
 export function ApprovalSheet({ item }: ApprovalSheetProps) {
   const tags = parseTags(item.tags);
+  const displayTitle = formatBilingualTitle(item.title, readTranslatedTitle(item.structuredJson));
 
   return (
     <article className="approval-sheet">
       <div className="approval-header">
         <div>
           <p className="section-kicker">{item.source.name}</p>
-          <h3>{item.title}</h3>
+          <h3>{displayTitle}</h3>
         </div>
         <span className={`status-pill ${item.riskLevel === RiskLevel.HIGH ? "danger" : "good"}`}>
-          {item.riskLevel === RiskLevel.HIGH ? "High risk" : "Low risk"}
+          {item.riskLevel === RiskLevel.HIGH ? "高风险" : "低风险"}
         </span>
       </div>
 
@@ -30,10 +46,10 @@ export function ApprovalSheet({ item }: ApprovalSheetProps) {
       <div className="inline-tags">
         {tags.map((tag) => (
           <span className="tag-pill" key={tag}>
-            {tag}
+            {translateTag(tag)}
           </span>
         ))}
-        <span className="tag-pill muted">{CandidateStatus[item.status]}</span>
+        <span className="tag-pill muted">{statusLabel(item.status)}</span>
       </div>
 
       <div className="approval-actions">
@@ -41,14 +57,14 @@ export function ApprovalSheet({ item }: ApprovalSheetProps) {
           <input name="candidateId" type="hidden" value={item.id} />
           <input name="decision" type="hidden" value="publish" />
           <button className="button button-primary" type="submit">
-            Publish
+            发布
           </button>
         </form>
         <form action={reviewCandidateAction}>
           <input name="candidateId" type="hidden" value={item.id} />
           <input name="decision" type="hidden" value="reject" />
           <button className="button button-secondary" type="submit">
-            Reject
+            拒绝
           </button>
         </form>
       </div>

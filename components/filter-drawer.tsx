@@ -4,11 +4,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 const tagOptions = [
-  { label: "All", value: "all" },
-  { label: "Agents", value: "agents" },
-  { label: "Models", value: "models" },
-  { label: "Infra", value: "infra" },
-  { label: "Enterprise", value: "enterprise" }
+  { label: "全部", value: "all" },
+  { label: "智能体", value: "agents" },
+  { label: "模型", value: "models" },
+  { label: "基础设施", value: "infra" },
+  { label: "企业", value: "enterprise" }
 ];
 
 const windowOptions = [
@@ -37,11 +37,11 @@ export function FilterDrawer({ currentTag, currentWindow }: FilterDrawerProps) {
   return (
     <div className="filter-drawer-shell">
       <button className="filter-toggle" onClick={() => setOpen((value) => !value)} type="button">
-        Filters
+        筛选
       </button>
       <div className={`filter-drawer ${open ? "is-open" : ""}`}>
         <div className="filter-group">
-          <p className="filter-label">Tag</p>
+          <p className="filter-label">标签</p>
           <div className="chip-row">
             {tagOptions.map((option) => (
               <button
@@ -56,7 +56,7 @@ export function FilterDrawer({ currentTag, currentWindow }: FilterDrawerProps) {
           </div>
         </div>
         <div className="filter-group">
-          <p className="filter-label">Window</p>
+          <p className="filter-label">时间范围</p>
           <div className="chip-row">
             {windowOptions.map((option) => (
               <button

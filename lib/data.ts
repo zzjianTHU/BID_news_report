@@ -375,6 +375,38 @@ export async function getRecentIngestionRuns(limit = 12) {
   });
 }
 
+export async function getRunningIngestionRuns(limit = 6) {
+  return prisma.ingestionRun.findMany({
+    where: {
+      status: RunStatus.RUNNING
+    },
+    include: {
+      source: true,
+      candidateItems: {
+        select: {
+          id: true,
+          status: true,
+          title: true,
+          createdAt: true
+        },
+        orderBy: [{ createdAt: "desc" }]
+      }
+    },
+    orderBy: [{ startedAt: "desc" }],
+    take: limit
+  });
+}
+
+export async function getRecentCandidateItems(limit = 10) {
+  return prisma.candidateItem.findMany({
+    include: {
+      source: true
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take: limit
+  });
+}
+
 export async function getSchedulerConfig() {
   return prisma.schedulerConfig.upsert({
     where: {

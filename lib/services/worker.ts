@@ -965,13 +965,14 @@ async function releaseSource(
 async function ingestSource(
   source: Source,
   workflow: WorkflowConfig | null,
-  routesByKey: Map<string, ModelRouteConfig>
+  routesByKey: Map<string, ModelRouteConfig>,
+  trigger: IngestionTrigger
 ) {
   const startedAt = new Date();
   const run = await prisma.ingestionRun.create({
     data: {
       sourceId: source.id,
-      trigger: IngestionTrigger.SCHEDULED,
+      trigger,
       status: RunStatus.RUNNING,
       itemsFound: 0,
       itemsPublished: 0,
@@ -1421,7 +1422,7 @@ export async function syncFeishuDraftDecisions() {
   };
 }
 
-export async function runIngestCycle() {
+export async function runIngestCycle(trigger: IngestionTrigger = IngestionTrigger.SCHEDULED) {
   const now = new Date();
   const expiredLock = new Date(now.getTime() - LOCK_TIMEOUT_MS);
   const [workflow, routesByKey] = await Promise.all([getActiveWorkflowMirror(), getModelRouteMap()]);
@@ -1459,7 +1460,7 @@ export async function runIngestCycle() {
     result.processedSources += 1;
 
     try {
-      const sourceResult = await ingestSource(source, workflow, routesByKey);
+      const sourceResult = await ingestSource(source, workflow, routesByKey, trigger);
       result.publishedCount += sourceResult.publishedCount;
       result.reviewCount += sourceResult.reviewCount;
       result.duplicateCount += sourceResult.duplicateCount;
@@ -1508,7 +1509,7 @@ export async function runWorkerTask(task: WorkerTaskName) {
     case "sync-feishu-control-plane":
       return syncFeishuControlPlane();
     case "run-ingest-cycle":
-      return runIngestCycle();
+      return runIngestCycle(IngestionTrigger.MANUAL_SYNC);
     case "sync-feishu-draft-decisions":
       return syncFeishuDraftDecisions();
     case "generate-digest":
